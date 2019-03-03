@@ -1,6 +1,6 @@
 /* Sajtkukac - customizes the position of icons on your Windows taskbar
  * Copyright (C) 2019 friendlyanon <skype1234@waifu.club>
- * Sajtkukac.h is part of Sajtkukac.
+ * Sajtkukac.cpp is part of Sajtkukac.
  *
  * Sajtkukac is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
