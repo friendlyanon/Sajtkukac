@@ -32,8 +32,8 @@ shortcut.
 
 ## Contribution
 Ideas, translations, design changes, code cleaning or real heavy code changes
-are all welcome. This is my first C++ **and** WinApi project, so help is
-appreciated.
+are all welcome.  
+This is my first C++ **and** WinApi project, so help is appreciated.
 
 ## Donation
 If you feel like I could make your desktop look just a little bit cooler, you
@@ -48,7 +48,7 @@ are more than welcome to buy me a drink. :)
   <tr>
     <td><a href="https://liberapay.com/friendlyanon/"><img src="https://upload.wikimedia.org/wikipedia/commons/2/27/Liberapay_logo_v2_white-on-yellow.svg" alt="Liberapay" width="80px" ></a></td>
     <td><a href="https://liberapay.com/friendlyanon/"><img src="assets/librepay_qr.png" alt="Visit friendlyanon at liberapay.com" width="150px"></a></td>
-    <td><a href="https://liberapay.com/friendlyanon/donate"><img src="assets/liberapay_donate_button.svg" alt="Donate via Liberapay" height="35px"></a></td>
+    <td><a href="https://liberapay.com/friendlyanon/donate"><img src="assets/librepay_donate_button.svg" alt="Donate via Liberapay" height="35px"></a></td>
   </tr>
 </table>
 
@@ -61,5 +61,5 @@ will. Specifically you can redistribute and/or modify it under the terms of the
 published by the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-### simple_match
+### [simple_match](//github.com/jbandela/simple_match/)
 By John R. Bandela, licensed under Boost Software License - Version 1.0
