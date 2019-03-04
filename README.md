@@ -2,10 +2,10 @@
 C++ tool for Windows to make your taskbar icons stay in the center.
 
 #### Before
-[![Before Sajtkukac](assets/before.png)]
+![Before Sajtkukac](assets/before.png)
 
 #### After
-[![After Sajtkukac](assets/after.png)]
+![After Sajtkukac](assets/after.png)
 
 ## Usage
 After opening the exe, it will show up in your system tray.  
