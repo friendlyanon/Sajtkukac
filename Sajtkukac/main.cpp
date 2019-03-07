@@ -16,9 +16,6 @@
  * along with Sajtkukac. If not, see <https://www.gnu.org/licenses/>.
  */
 
- // Sajtkukac.cpp : Defines the entry point for the application.
-//
-
 #include "stdafx.h"
 #include "main.h"
 #include "scopeexit/ScopeExit.h"
@@ -27,15 +24,15 @@
 #define WM_USER_SHELLICON (WM_USER + 1)
 
 // Global Variables:
-HINSTANCE hInst;                                // current instance
-NOTIFYICONDATA nidApp;                          // tray icon
-HMENU hPopMenu;                                 // right click context menu
-WCHAR szTitle[MAX_LOADSTRING];                  // the title bar text
-WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
-UINT uPercentage;                               // position of the icons
-UINT uRefreshRate;                              // refresh rate in milliseconds
-WORKER_DETAILS *wdDetails = nullptr;            // struct to communicate with worker
-HANDLE hMutex = nullptr;                        // single instance mutex
+HINSTANCE hInst;                      // current instance
+NOTIFYICONDATA nidApp;                // tray icon
+HMENU hPopMenu;                       // right click context menu
+WCHAR szTitle[MAX_LOADSTRING];        // the title bar text
+WCHAR szWindowClass[MAX_LOADSTRING];  // the main window class name
+UINT uPercentage;                     // position of the icons
+UINT uRefreshRate;                    // refresh rate in milliseconds
+WORKER_DETAILS *wdDetails = nullptr;  // struct to communicate with worker
+HANDLE hMutex = nullptr;              // single instance mutex
 
 // TODO: fall back to system icons until someone makes one :)
 #ifndef IDI_SAJTKUKAC
@@ -46,15 +43,15 @@ HICON hSmallShellIcon = ::LoadIcon(hShell32, MAKEINTRESOURCE(SHELL_ICON_ID));
 #endif
 
 // Forward declarations of functions included in this code module:
-ATOM                MyRegisterClass(HINSTANCE hInstance);
-BOOL                InitInstance(HINSTANCE, int);
-LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK    Settings(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-VOID                ShowContextMenu(HWND);
-VOID                TerminateApplication(HWND);
-BOOL                InitWorker();
-
+ATOM             MyRegisterClass(HINSTANCE hInstance);
+BOOL             InitInstance(HINSTANCE, int);
+LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK Settings(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
+VOID             ShowContextMenu(HWND);
+VOID             TerminateApplication(HWND);
+BOOL             InitWorker(VOID);
+VOID             ShowSuccessBalloon(VOID);
 
 int APIENTRY wWinMain(
 	_In_ HINSTANCE hInstance,
@@ -104,7 +101,7 @@ int APIENTRY wWinMain(
 		uRefreshRate = 500;
 	}
 
-	// Perform application initialization:
+	// Perform application initialization
 	if (!::InitInstance(hInstance, nCmdShow) || !::InitWorker())
 	{
 		return 1;
@@ -113,7 +110,7 @@ int APIENTRY wWinMain(
 	HACCEL hAccelTable = ::LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SAJTKUKAC));
 	MSG msg;
 
-	// Main message loop:
+	// Main message loop
 	while (::GetMessage(&msg, nullptr, 0, 0))
 	{
 		if (!::TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
@@ -126,11 +123,6 @@ int APIENTRY wWinMain(
 	return (int)msg.wParam;
 }
 
-//
-//  FUNCTION: MyRegisterClass()
-//
-//  PURPOSE: Registers the window class.
-//
 ATOM MyRegisterClass(HINSTANCE hInstance)
 {
 	WNDCLASSEXW wcex;
@@ -157,16 +149,6 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 	return ::RegisterClassExW(&wcex);
 }
 
-//
-//   FUNCTION: InitInstance(HINSTANCE, int)
-//
-//   PURPOSE: Saves instance handle and creates main window
-//
-//   COMMENTS:
-//
-//        In this function, we save the instance handle in a global variable and
-//        create and display the main program window.
-//
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
 	UNREFERENCED_PARAMETER(nCmdShow);
@@ -203,19 +185,22 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 BOOL InitWorker()
 {
-	return Init(nidApp.hWnd, &uPercentage, &uRefreshRate, &wdDetails);
+	return ::Init(nidApp.hWnd, &uPercentage, &uRefreshRate, &wdDetails);
 }
+
+#define LOADSTRING(name, id) \
+	WCHAR name[MAX_LOADSTRING]; \
+	::LoadString(hInst, id, name, MAX_LOADSTRING);
 
 VOID ShowContextMenu(HWND hWnd)
 {
 	hPopMenu = ::CreatePopupMenu();
 
-#define MAKEMENUITEM(a, b, c) do {             \
-	WCHAR m[MAX_LOADSTRING];                   \
-	::LoadString(hInst, a, m, MAX_LOADSTRING); \
-	BSTR m_bstr = SysAllocString(m);           \
-	::InsertMenu(hPopMenu, -1, b, c, m_bstr);  \
-	::SysFreeString(m_bstr);                   \
+#define MAKEMENUITEM(a, b, c) do {            \
+	LOADSTRING(m, a);                         \
+	BSTR m_bstr = SysAllocString(m);          \
+	::InsertMenu(hPopMenu, -1, b, c, m_bstr); \
+	::SysFreeString(m_bstr);                  \
 } while(FALSE)
 
 	MAKEMENUITEM(IDS_TRAY_SETTINGS,  MF_BYPOSITION | MF_STRING, IDM_SETTINGS);
@@ -225,7 +210,7 @@ VOID ShowContextMenu(HWND hWnd)
 	MAKEMENUITEM(IDS_TRAY_SEPARATOR, MF_SEPARATOR,              IDM_SEP);
 	MAKEMENUITEM(IDS_TRAY_EXIT,      MF_BYPOSITION | MF_STRING, IDM_EXIT);
 
-#undef MAKEMENU
+#undef MAKEMENUITEM
 
 	::SetForegroundWindow(hWnd);
 
@@ -253,15 +238,14 @@ VOID TerminateApplication(HWND hWnd)
 		}
 	}
 
-	CloseHandle(snapshot);
+	::CloseHandle(snapshot);
 
 	STARTUPINFO si;
 	PROCESS_INFORMATION pi;
 	::ZeroMemory(&si, sizeof(si));
 	si.cb = sizeof(si);
 	::ZeroMemory(&pi, sizeof(pi));
-	WCHAR command[MAX_LOADSTRING];
-	::LoadString(hInst, IDS_EXPLORER_COMMAND, command, MAX_LOADSTRING);
+	LOADSTRING(command, IDS_EXPLORER_COMMAND);
 	::CreateProcess(nullptr, command, nullptr, nullptr,
 		FALSE, 0, nullptr, nullptr, &si, &pi);
 
@@ -291,15 +275,6 @@ VOID ShowSuccessBalloon(VOID)
 	::Shell_NotifyIcon(NIM_MODIFY, &data);
 }
 
-//
-//  FUNCTION: WndProc(HWND, UINT, WPARAM, LPARAM)
-//
-//  PURPOSE: Processes messages for the main window.
-//
-//  WM_COMMAND  - process the application menu
-//  WM_DESTROY  - post a quit message and return
-//
-//
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	switch (message)
@@ -320,10 +295,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 		case WM_USER_WORKER_FAILURE:
 		{
+			LOADSTRING(format, IDS_WORKER_FAIL_FORMAT);
 			WCHAR buffer[256];
 			::StringCbPrintf(buffer, sizeof(buffer),
-				L"Worker thread error 0x%X", (HRESULT)lParam);
-			::MessageBox(hWnd, buffer, L"Sajtkukac - Critical Error",
+				format, (HRESULT)lParam);
+			LOADSTRING(caption, IDS_WORKER_FAIL_CAPTION);
+			::MessageBox(hWnd, buffer, caption,
 				MB_ICONERROR | MB_TOPMOST | MB_SYSTEMMODAL);
 			::TerminateApplication(hWnd);
 		}
@@ -335,8 +312,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			else
 			{
-				::MessageBox(hWnd, L"Failed to reload the worker thread",
-					L"Sajtkukac - Critical Error",
+				LOADSTRING(message, IDS_WORKER_FAIL_MSG);
+				LOADSTRING(caption, IDS_WORKER_FAIL_CAPTION);
+				::MessageBox(hWnd, message, caption,
 					MB_ICONERROR | MB_TOPMOST | MB_SYSTEMMODAL);
 				::TerminateApplication(hWnd);
 			}
@@ -347,7 +325,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_COMMAND:
 	{
 		int wmId = LOWORD(wParam);
-		// Parse the menu selections:
+		// Parse the menu selections
 		switch (wmId)
 		{
 		case IDM_SETTINGS:
@@ -377,7 +355,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	return FALSE;
 }
 
-// Message handler for settings box.
 INT_PTR CALLBACK Settings(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	UNREFERENCED_PARAMETER(lParam);
@@ -455,7 +432,6 @@ INT_PTR CALLBACK Settings(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 	return (INT_PTR)FALSE;
 }
 
-// Message handler for about box.
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	UNREFERENCED_PARAMETER(lParam);

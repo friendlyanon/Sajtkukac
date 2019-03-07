@@ -20,6 +20,10 @@
 #include "Sajtkukac.h"
 #include "scopeexit/ScopeExit.h"
 
+#if HAS_EASING_OUT_BACK
+#include "easing/Easing.h"
+#endif
+
 namespace simple_match::customization {
 	template<>
 	struct tuple_adapter<RECT> {
@@ -27,7 +31,7 @@ namespace simple_match::customization {
 
 		template<size_t I, class T>
 		static decltype(auto) get(T&& t) {
-			return std::get<I>(std::tie(t.left, t.top, t.right, t.bottom));
+			return ::std::get<I>(::std::tie(t.left, t.top, t.right, t.bottom));
 		}
 	};
 }
@@ -42,24 +46,24 @@ enum class TrayPosition
 };
 
 // return if result is not null
-#define _C(x) if (auto r = x; r) return r
+#define CHECK_HR(x) if (auto r = x; r) return r
 // release if x is not nullptr
-#define _R(x) if (auto r = x; r != nullptr) r->Release()
-// declare variable x with type y and init with nullptr
-#define _P(y, x) y * x = nullptr
-// release x on scope exit using RAII
-#define _E(x) SCOPE_EXIT{ if (x != nullptr && !x->Release()) x = nullptr; }
-// declare scoped variable with release scope exit function
-#define _S(x, y) _P(x, y); _E(y)
+#define RELEASE(x) if (auto r = x; r != nullptr) r->Release()
+// declare pointer and init with nullptr
+#define DECLARE_PTR(type, id) \
+	type * id = nullptr
+// declare scoped pointer with release scope exit function
+#define SCOPED_PTR(type, id) DECLARE_PTR(type, id); \
+	SCOPE_EXIT{ if (id != nullptr && !id->Release()) id = nullptr; }
 
-typedef std::unordered_map<
+typedef ::std::unordered_map<
 	IUIAutomationElement*,
 	IUIAutomationElement*> TRAYMAP;
 
 DWORD dwThreadID;
 HANDLE hThread = nullptr;
-_P(IUIAutomation, g_pUI);
-_P(IUIAutomationTreeWalker, g_pControlWalker);
+DECLARE_PTR(IUIAutomation, g_pUI);
+DECLARE_PTR(IUIAutomationTreeWalker, g_pControlWalker);
 BSTR g_bstrs[3] = {
 	SysAllocString(L"Shell_TrayWnd"),
 	SysAllocString(L"Shell_SecondaryTrayWnd"),
@@ -68,32 +72,32 @@ BSTR g_bstrs[3] = {
 
 HRESULT GetWidthOfChildren(BOOL vertical, IUIAutomationElement *taskList, PUINT result)
 {
-	_S(IUIAutomationCondition, buttonCond);
+	SCOPED_PTR(IUIAutomationCondition, buttonCond);
 	{
 		VARIANT var{ VT_I4 };
 		var.lVal = UIA_ButtonControlTypeId;
-		_C(g_pUI->CreatePropertyCondition(UIA_ControlTypePropertyId,
+		CHECK_HR(g_pUI->CreatePropertyCondition(UIA_ControlTypePropertyId,
 			var, &buttonCond));
 	}
 
-	_S(IUIAutomationElementArray, children);
-	_C(taskList->FindAll(TreeScope_Children,
+	SCOPED_PTR(IUIAutomationElementArray, children);
+	CHECK_HR(taskList->FindAll(TreeScope_Children,
 		buttonCond, &children));
 
 	INT length;
-	_C(children->get_Length(&length));
+	CHECK_HR(children->get_Length(&length));
 
 	if (length <= 0) return S_OK;
 
-	_S(IUIAutomationElement, first);
-	_C(children->GetElement(0, &first));
+	SCOPED_PTR(IUIAutomationElement, first);
+	CHECK_HR(children->GetElement(0, &first));
 	RECT fRect;
-	_C(first->get_CurrentBoundingRectangle(&fRect));
+	CHECK_HR(first->get_CurrentBoundingRectangle(&fRect));
 
-	_S(IUIAutomationElement, last);
-	_C(children->GetElement(length - 1, &last));
+	SCOPED_PTR(IUIAutomationElement, last);
+	CHECK_HR(children->GetElement(length - 1, &last));
 	RECT lRect;
-	_C(last->get_CurrentBoundingRectangle(&lRect));
+	CHECK_HR(last->get_CurrentBoundingRectangle(&lRect));
 
 	*result = vertical
 		? lRect.bottom - fRect.top
@@ -102,64 +106,52 @@ HRESULT GetWidthOfChildren(BOOL vertical, IUIAutomationElement *taskList, PUINT 
 	return S_OK;
 }
 
-#define ANIMATION_ITERATIONS (15)
-#define ANIMATION_WAIT (10)
-#define ANIMATION_DURATION (ANIMATION_ITERATIONS * ANIMATION_WAIT)
-#define POS_SETTER(x, y) \
-	if (auto r = ::SetWindowPos((HWND)hWnd, nullptr, \
-		(INT)x, (INT)y, 0, 0, flags); r == 0) \
-		return ::GetLastError();
-	
+static constexpr INT animationIterations = 30;
+static constexpr INT animationWait = 10;
+static constexpr DOUBLE animationDuration = animationIterations * animationWait;
+
 HRESULT MoveTaskList(BOOL vertical, UINT percentage,
 	RECT dRect, IUIAutomationElement *taskList)
 {
 	RECT tRect;
-	_C(taskList->get_CurrentBoundingRectangle(&tRect));
+	CHECK_HR(taskList->get_CurrentBoundingRectangle(&tRect));
 	UINT width = 0;
-	_C(::GetWidthOfChildren(vertical, taskList, &width));
+	CHECK_HR(::GetWidthOfChildren(vertical, taskList, &width));
 
-	DOUBLE dPerc = percentage / 100.0;
-	DOUBLE dTarget = (vertical ? dRect.bottom : dRect.right) * dPerc;
-	DOUBLE tTarget = width * dPerc;
+	const DOUBLE dPerc = percentage / 100.0;
+	const DOUBLE desktopPoint = (vertical ? dRect.bottom : dRect.right) * dPerc;
+	const DOUBLE taskListPoint = width * dPerc;
 
-	DOUBLE b = vertical ? tRect.top : tRect.left;
-	DOUBLE offset = b + tTarget;
-	DOUBLE distance = dTarget - offset;
+	const DOUBLE startValue = vertical ? tRect.top : tRect.left;
+	const DOUBLE difference = desktopPoint - startValue - taskListPoint;
 
-	if (::abs(distance) < 5.0) return S_OK;
+	if (::abs(difference) < 5.0) return S_OK;
 
 	UIA_HWND hWnd;
-	_C(taskList->get_CurrentNativeWindowHandle(&hWnd));
+	CHECK_HR(taskList->get_CurrentNativeWindowHandle(&hWnd));
 
-	UINT flags = SWP_ASYNCWINDOWPOS | SWP_NOSENDCHANGING |
-		SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOSIZE;
+	auto posSetter = [h = (HWND)hWnd, f = 0x4415u, vertical]
+		(DOUBLE x, DOUBLE y) noexcept -> HRESULT
+	{
+		if (vertical) ::std::swap(x, y);
+		if (auto r = ::SetWindowPos(h, nullptr,
+			(INT)x, (INT)y, 0, 0, f); r == 0)
+			return ::GetLastError();
+		return S_OK;
+	};
 
-	// TODO: SetWindowPos is super slow, can't animate. What gives?
-#if (0)
-	for (int i = 0; i < ANIMATION_ITERATIONS; ++i)
+#if HAS_EASING_OUT_BACK
+	const DOUBLE tUnit = 1.0 / animationIterations * animationDuration;
+	DOUBLE currentTime = 0.0;
+	for (int i = 0; i < animationIterations; ++i, currentTime += tUnit)
 	{
-		DOUBLE t = i / ANIMATION_ITERATIONS * 10;
-		DOUBLE step = ::EaseOutBack(t, b, 1, ANIMATION_DURATION);
-		if (vertical)
-		{
-			POS_SETTER(0, step);
-		}
-		else
-		{
-			POS_SETTER(step, 0);
-		}
-		Sleep(ANIMATION_WAIT);
-	}
-#else
-	if (vertical)
-	{
-		POS_SETTER(0, dTarget - tTarget);
-	}
-	else
-	{
-		POS_SETTER(dTarget - tTarget, 0);
+		const DOUBLE step = ::EaseOutBack(
+			currentTime, startValue, difference, animationDuration);
+		CHECK_HR(posSetter(step, 0));
+		::Sleep(animationWait);
 	}
 #endif
+	CHECK_HR(posSetter(desktopPoint - taskListPoint, 0));
 
 	return S_OK;
 }
@@ -167,42 +159,42 @@ HRESULT MoveTaskList(BOOL vertical, UINT percentage,
 HRESULT PopulateTrayMap(IUIAutomationElement *pDesktop, TRAYMAP *pTrayMap)
 {
 	IUIAutomationCondition *conditions[2]{ nullptr, nullptr };
-	SCOPE_EXIT{ for (int i = 0; i < 2; ++i) _R(conditions[i]); };
+	SCOPE_EXIT{ for (int i = 0; i < 2; ++i) RELEASE(conditions[i]); };
 	for (int i = 0; i < 2; ++i)
 	{
-		_P(IUIAutomationCondition, prop);
+		DECLARE_PTR(IUIAutomationCondition, prop);
 		VARIANT var{ VT_BSTR };
 		var.bstrVal = g_bstrs[i];
-		_C(g_pUI->CreatePropertyCondition(
+		CHECK_HR(g_pUI->CreatePropertyCondition(
 			UIA_ClassNamePropertyId, var, &prop));
 		conditions[i] = prop;
 	}
 
-	_S(IUIAutomationCondition, orCondition);
-	_C(g_pUI->CreateOrConditionFromNativeArray(
+	SCOPED_PTR(IUIAutomationCondition, orCondition);
+	CHECK_HR(g_pUI->CreateOrConditionFromNativeArray(
 		conditions, 2, &orCondition));
 
-	_S(IUIAutomationElementArray, sysTrays);
-	_C(pDesktop->FindAll(TreeScope_Children,
+	SCOPED_PTR(IUIAutomationElementArray, sysTrays);
+	CHECK_HR(pDesktop->FindAll(TreeScope_Children,
 		orCondition, &sysTrays));
 	{
 		int length;
-		_C(sysTrays->get_Length(&length));
+		CHECK_HR(sysTrays->get_Length(&length));
 		if (!length) return S_OK;
 		for (int i = 0; i < length; ++i)
 		{
-			_P(IUIAutomationElement, sysTray);
-			_C(sysTrays->GetElement(i, &sysTray));
+			DECLARE_PTR(IUIAutomationElement, sysTray);
+			CHECK_HR(sysTrays->GetElement(i, &sysTray));
 
-			_P(IUIAutomationElement, taskList);
-			_S(IUIAutomationCondition, prop);
+			DECLARE_PTR(IUIAutomationElement, taskList);
+			SCOPED_PTR(IUIAutomationCondition, prop);
 			{
 				VARIANT var{ VT_BSTR };
 				var.bstrVal = g_bstrs[2];
-				_C(g_pUI->CreatePropertyCondition(
+				CHECK_HR(g_pUI->CreatePropertyCondition(
 					UIA_ClassNamePropertyId, var, &prop));
 			}
-			_C(sysTray->FindFirst(TreeScope_Descendants,
+			CHECK_HR(sysTray->FindFirst(TreeScope_Descendants,
 				prop, &taskList));
 			(*pTrayMap)[sysTray] = taskList;
 		}
@@ -215,27 +207,27 @@ HRESULT SajtkukacImpl(UINT percentage)
 	using namespace simple_match;
 	using namespace simple_match::placeholders;
 
-	_S(IUIAutomationElement, pDesktop);
-	_C(g_pUI->GetRootElement(&pDesktop));
+	SCOPED_PTR(IUIAutomationElement, pDesktop);
+	CHECK_HR(g_pUI->GetRootElement(&pDesktop));
 
 	TRAYMAP trayMap;
 	SCOPE_EXIT{
 		for (auto [sysTray, taskList] : trayMap)
 		{
-			_R(sysTray);
-			_R(taskList);
+			RELEASE(sysTray);
+			RELEASE(taskList);
 		}
 		trayMap.clear();
 	};
-	_C(::PopulateTrayMap(pDesktop, &trayMap));
+	CHECK_HR(::PopulateTrayMap(pDesktop, &trayMap));
 
 	RECT dRect;
-	_C(pDesktop->get_CurrentBoundingRectangle(&dRect));
+	CHECK_HR(pDesktop->get_CurrentBoundingRectangle(&dRect));
 
 	for (auto [sysTray, taskList] : trayMap)
 	{
 		RECT sRect;
-		_C(sysTray->get_CurrentBoundingRectangle(&sRect));
+		CHECK_HR(sysTray->get_CurrentBoundingRectangle(&sRect));
 
 		TrayPosition pos = match(dRect,
 			ds(_, sRect.top, sRect.right, sRect.bottom),
@@ -255,11 +247,11 @@ HRESULT SajtkukacImpl(UINT percentage)
 		{
 		case TrayPosition::LEFT:
 		case TrayPosition::RIGHT:
-			_C(::MoveTaskList(TRUE, percentage, dRect, taskList));
+			CHECK_HR(::MoveTaskList(TRUE, percentage, dRect, taskList));
 			break;
 		case TrayPosition::TOP:
 		case TrayPosition::BOTTOM:
-			_C(::MoveTaskList(FALSE, percentage, dRect, taskList));
+			CHECK_HR(::MoveTaskList(FALSE, percentage, dRect, taskList));
 			break;
 		}
 	}
@@ -268,26 +260,26 @@ HRESULT SajtkukacImpl(UINT percentage)
 
 HRESULT CreateControlWalker(VOID)
 {
-	_P(IUIAutomationCondition, propCond);
+	DECLARE_PTR(IUIAutomationCondition, propCond);
 	{
 		VARIANT var{ VT_BOOL };
 		var.boolVal = FALSE;
-		_C(g_pUI->CreatePropertyCondition(
+		CHECK_HR(g_pUI->CreatePropertyCondition(
 			UIA_IsControlElementPropertyId, var, &propCond));
 	}
-	_P(IUIAutomationCondition, notCondition);
-	_C(g_pUI->CreateNotCondition(propCond, &notCondition));
-	_C(g_pUI->CreateTreeWalker(notCondition, &g_pControlWalker));
+	DECLARE_PTR(IUIAutomationCondition, notCondition);
+	CHECK_HR(g_pUI->CreateNotCondition(propCond, &notCondition));
+	CHECK_HR(g_pUI->CreateTreeWalker(notCondition, &g_pControlWalker));
 	return S_OK;
 }
 
 HRESULT SajtkukacInit(VOID)
 {
-	_C(::CoInitialize(nullptr));
-	_C(::CoCreateInstance(__uuidof(CUIAutomation),
+	CHECK_HR(::CoInitialize(nullptr));
+	CHECK_HR(::CoCreateInstance(__uuidof(CUIAutomation),
 		nullptr, CLSCTX_INPROC_SERVER, __uuidof(IUIAutomation),
 		(LPVOID *)&g_pUI));
-	_C(::CreateControlWalker());
+	CHECK_HR(::CreateControlWalker());
 	return S_OK;
 }
 
@@ -309,11 +301,11 @@ DWORD WINAPI Sajtkukac(PVOID pParam)
 			WM_USER_WORKER_FAILURE, returnCode);
 	};
 
-	_C(returnCode = ::SajtkukacInit());
+	CHECK_HR(returnCode = ::SajtkukacInit());
 	SCOPE_EXIT{
-		_R(g_pControlWalker);
+		RELEASE(g_pControlWalker);
 		g_pControlWalker = nullptr;
-		_R(g_pUI);
+		RELEASE(g_pUI);
 		g_pUI = nullptr;
 		::CoUninitialize();
 	};
@@ -338,7 +330,7 @@ BOOL Init(HWND hWnd, PUINT pPercentage, PUINT pRefreshRate, WORKER_DETAILS **wdD
 		}
 	}
 	
-	*wdDetails = new (std::nothrow) WORKER_DETAILS{ pPercentage, pRefreshRate, hWnd };
+	*wdDetails = new (::std::nothrow) WORKER_DETAILS{ pPercentage, pRefreshRate, hWnd };
 	hThread = ::CreateThread(0, 0, (LPTHREAD_START_ROUTINE)::Sajtkukac,
 		wdDetails, 0, &dwThreadID);
 

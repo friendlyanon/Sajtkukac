@@ -16,6 +16,9 @@
 #define IDC_SAJTKUKAC                   109
 #define IDS_TRAY_SEPARATOR              110
 #define IDS_EXPLORER_COMMAND            111
+#define IDS_WORKER_FAIL_FORMAT          112
+#define IDS_WORKER_FAIL_MSG             113
+#define IDS_WORKER_FAIL_CAPTION         114
 #define IDR_MAINFRAME                   128
 #define IDC_PERCENTAGE_SLIDER           1001
 #define IDC_PERCENTAGE_EDIT             1004

@@ -27,6 +27,7 @@
 
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 #define _HAS_EXCEPTIONS 0
+#define HAS_EASING_OUT_BACK 1
 // Windows Header Files
 #include <windows.h>
 #include <windowsx.h>

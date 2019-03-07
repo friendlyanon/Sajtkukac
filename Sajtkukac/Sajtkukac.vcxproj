@@ -175,6 +175,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="scopeexit\\ScopeExit.h" />
+    <ClInclude Include="easing\\Easing.h" />
     <ClInclude Include="Sajtkukac.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="main.h" />
