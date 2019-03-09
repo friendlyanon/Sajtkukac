@@ -16,7 +16,7 @@
  * along with Sajtkukac. If not, see <https://www.gnu.org/licenses/>.
  */
 
- // stdafx.h : include file for standard system include files,
+// stdafx.h : include file for standard system include files,
 // or project specific include files that are used frequently, but
 // are changed infrequently
 //
@@ -27,17 +27,23 @@
 
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 #define _HAS_EXCEPTIONS 0
-#define HAS_EASING_OUT_BACK 1
 // Windows Header Files
 #include <windows.h>
 #include <windowsx.h>
+#include <Windef.h>
+#include <ShlDisp.h>
 #include <shellapi.h>
 #include <commctrl.h>
 #include <ole2.h>
+#include <fileapi.h>
 #include <UIAutomation.h>
 #include <Strsafe.h>
 #include <tlhelp32.h>
-#include <mmsystem.h>
+#include <wininet.h>
+#include <urlmon.h>
+#if (NTDDI_VERSION >= NTDDI_WIN8)
+#include <Pathcch.h>
+#endif
 
 // C RunTime Header Files
 #include <malloc.h>
@@ -51,6 +57,3 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-
-// reference additional headers your program requires here

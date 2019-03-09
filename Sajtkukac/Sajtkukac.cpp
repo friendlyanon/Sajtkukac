@@ -18,11 +18,8 @@
 
 #include "stdafx.h"
 #include "Sajtkukac.h"
-#include "scopeexit/ScopeExit.h"
-
-#if HAS_EASING_OUT_BACK
+#include "PtrMacros.h"
 #include "easing/Easing.h"
-#endif
 
 namespace simple_match::customization {
 	template<>
@@ -31,10 +28,13 @@ namespace simple_match::customization {
 
 		template<size_t I, class T>
 		static decltype(auto) get(T&& t) {
-			return ::std::get<I>(::std::tie(t.left, t.top, t.right, t.bottom));
+			return std::get<I>(std::tie(t.left, t.top, t.right, t.bottom));
 		}
 	};
 }
+
+namespace
+{
 
 enum class TrayPosition
 {
@@ -45,30 +45,21 @@ enum class TrayPosition
 	TOP
 };
 
-// return if result is not null
-#define CHECK_HR(x) if (auto r = x; r) return r
-// release if x is not nullptr
-#define RELEASE(x) if (auto r = x; r != nullptr) r->Release()
-// declare pointer and init with nullptr
-#define DECLARE_PTR(type, id) \
-	type * id = nullptr
-// declare scoped pointer with release scope exit function
-#define SCOPED_PTR(type, id) DECLARE_PTR(type, id); \
-	SCOPE_EXIT{ if (id != nullptr && !id->Release()) id = nullptr; }
-
-typedef ::std::unordered_map<
+typedef std::unordered_map<
 	IUIAutomationElement*,
 	IUIAutomationElement*> TRAYMAP;
 
-DWORD dwThreadID;
+DWORD dwThreadID = 0;
 HANDLE hThread = nullptr;
 DECLARE_PTR(IUIAutomation, g_pUI);
 DECLARE_PTR(IUIAutomationTreeWalker, g_pControlWalker);
 BSTR g_bstrs[3] = {
-	SysAllocString(L"Shell_TrayWnd"),
-	SysAllocString(L"Shell_SecondaryTrayWnd"),
-	SysAllocString(L"MSTaskListWClass")
+	::SysAllocString(L"Shell_TrayWnd"),
+	::SysAllocString(L"Shell_SecondaryTrayWnd"),
+	::SysAllocString(L"MSTaskListWClass")
 };
+
+}
 
 HRESULT GetWidthOfChildren(BOOL vertical, IUIAutomationElement *taskList, PUINT result)
 {
@@ -131,32 +122,30 @@ HRESULT MoveTaskList(BOOL vertical, UINT percentage,
 	CHECK_HR(taskList->get_CurrentNativeWindowHandle(&hWnd));
 
 	auto posSetter = [h = (HWND)hWnd, f = 0x4415u, vertical]
-		(DOUBLE x, DOUBLE y) noexcept -> HRESULT
+		(DOUBLE x, DOUBLE y = 0.0) noexcept -> HRESULT
 	{
 		if (vertical) ::std::swap(x, y);
-		if (auto r = ::SetWindowPos(h, nullptr,
-			(INT)x, (INT)y, 0, 0, f); r == 0)
+		if (::SetWindowPos(h, nullptr,
+			(INT)x, (INT)y, 0, 0, f) == 0)
 			return ::GetLastError();
 		return S_OK;
 	};
 
-#if HAS_EASING_OUT_BACK
 	const DOUBLE tUnit = 1.0 / animationIterations * animationDuration;
 	DOUBLE currentTime = 0.0;
 	for (int i = 0; i < animationIterations; ++i, currentTime += tUnit)
 	{
 		const DOUBLE step = ::EaseOutBack(
 			currentTime, startValue, difference, animationDuration);
-		CHECK_HR(posSetter(step, 0));
+		CHECK_HR(posSetter(step));
 		::Sleep(animationWait);
 	}
-#endif
-	CHECK_HR(posSetter(desktopPoint - taskListPoint, 0));
+	CHECK_HR(posSetter(desktopPoint - taskListPoint));
 
 	return S_OK;
 }
 
-HRESULT PopulateTrayMap(IUIAutomationElement *pDesktop, TRAYMAP *pTrayMap)
+HRESULT PopulateTrayMap(IUIAutomationElement *pDesktop, TRAYMAP &pTrayMap)
 {
 	IUIAutomationCondition *conditions[2]{ nullptr, nullptr };
 	SCOPE_EXIT{ for (int i = 0; i < 2; ++i) RELEASE(conditions[i]); };
@@ -196,7 +185,7 @@ HRESULT PopulateTrayMap(IUIAutomationElement *pDesktop, TRAYMAP *pTrayMap)
 			}
 			CHECK_HR(sysTray->FindFirst(TreeScope_Descendants,
 				prop, &taskList));
-			(*pTrayMap)[sysTray] = taskList;
+			pTrayMap[sysTray] = taskList;
 		}
 	}
 	return S_OK;
@@ -219,7 +208,7 @@ HRESULT SajtkukacImpl(UINT percentage)
 		}
 		trayMap.clear();
 	};
-	CHECK_HR(::PopulateTrayMap(pDesktop, &trayMap));
+	CHECK_HR(::PopulateTrayMap(pDesktop, trayMap));
 
 	RECT dRect;
 	CHECK_HR(pDesktop->get_CurrentBoundingRectangle(&dRect));
@@ -290,14 +279,14 @@ DWORD WINAPI Sajtkukac(PVOID pParam)
 	SCOPE_EXIT{
 		delete *details;
 		*details = nullptr;
-		::SendMessage(hWnd, WM_USER_WORKER,
+		::PostMessage(hWnd, WM_USER_WORKER,
 			WM_USER_WORKER_RELOAD, 0);
 	};
 
 	HRESULT returnCode = S_OK;
 	SCOPE_EXIT{
 		if (returnCode == S_OK) return;
-		::SendMessage(hWnd, WM_USER_WORKER,
+		::PostMessage(hWnd, WM_USER_WORKER,
 			WM_USER_WORKER_FAILURE, returnCode);
 	};
 

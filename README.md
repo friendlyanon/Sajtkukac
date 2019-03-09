@@ -69,3 +69,6 @@ published by the Free Software Foundation, either version 3 of the License, or
 
 ### [simple_match](//github.com/jbandela/simple_match/)
 By John R. Bandela, licensed under Boost Software License - Version 1.0
+
+### Ease Out Back algorithm
+By Robert Penner, licensed under the BSD 2-clause license

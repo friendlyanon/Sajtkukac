@@ -18,21 +18,25 @@
 
 #include "stdafx.h"
 #include "main.h"
+#include "Updater.h"
 #include "scopeexit/ScopeExit.h"
+
+#pragma comment (lib, "Version.lib")
 
 #define MAX_LOADSTRING (100)
 #define WM_USER_SHELLICON (WM_USER + 1)
 
 // Global Variables:
-HINSTANCE hInst;                      // current instance
-NOTIFYICONDATA nidApp;                // tray icon
-HMENU hPopMenu;                       // right click context menu
-WCHAR szTitle[MAX_LOADSTRING];        // the title bar text
-WCHAR szWindowClass[MAX_LOADSTRING];  // the main window class name
-UINT uPercentage;                     // position of the icons
-UINT uRefreshRate;                    // refresh rate in milliseconds
-WORKER_DETAILS *wdDetails = nullptr;  // struct to communicate with worker
-HANDLE hMutex = nullptr;              // single instance mutex
+HINSTANCE hInst;                       // current instance
+NOTIFYICONDATA nidApp;                 // tray icon
+HMENU hPopMenu;                        // right click context menu
+WCHAR szTitle[MAX_LOADSTRING];         // the title bar text
+WCHAR szWindowClass[MAX_LOADSTRING];   // the main window class name
+UINT uPercentage;                      // position of the icons
+UINT uRefreshRate;                     // refresh rate in milliseconds
+WORKER_DETAILS *wdDetails = nullptr;   // struct to communicate with worker
+HANDLE hMutex = nullptr;               // single instance mutex
+UINT uMajor = 0, uMinor = 3;           // current version
 
 // TODO: fall back to system icons until someone makes one :)
 #ifndef IDI_SAJTKUKAC
@@ -49,7 +53,9 @@ LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK Settings(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
 VOID             ShowContextMenu(HWND);
-VOID             TerminateApplication(HWND);
+VOID             RestartExplorer(VOID);
+VOID             StartProc(LPCWSTR, UINT);
+VOID             TerminateApplication(HWND, BOOL);
 BOOL             InitWorker(VOID);
 VOID             ShowSuccessBalloon(VOID);
 
@@ -153,7 +159,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
 	UNREFERENCED_PARAMETER(nCmdShow);
 
-	hInst = hInstance; // Store instance handle in our global variable
+	// Store instance handle in our global variable
+	hInst = hInstance;
 
 	HWND hWnd = ::CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
@@ -183,14 +190,14 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	return TRUE;
 }
 
-BOOL InitWorker()
+BOOL InitWorker(VOID)
 {
 	return ::Init(nidApp.hWnd, &uPercentage, &uRefreshRate, &wdDetails);
 }
 
 #define LOADSTRING(name, id) \
 	WCHAR name[MAX_LOADSTRING]; \
-	::LoadString(hInst, id, name, MAX_LOADSTRING);
+	::LoadString(hInst, id, name, MAX_LOADSTRING)
 
 VOID ShowContextMenu(HWND hWnd)
 {
@@ -206,6 +213,8 @@ VOID ShowContextMenu(HWND hWnd)
 	MAKEMENUITEM(IDS_TRAY_SETTINGS,  MF_BYPOSITION | MF_STRING, IDM_SETTINGS);
 	MAKEMENUITEM(IDS_TRAY_RELOAD,    MF_BYPOSITION | MF_STRING, IDM_RELOAD);
 	MAKEMENUITEM(IDS_TRAY_SEPARATOR, MF_SEPARATOR,              IDM_SEP);
+	MAKEMENUITEM(IDS_TRAY_UPDATE,    MF_BYPOSITION | MF_STRING, IDM_UPDATE);
+	MAKEMENUITEM(IDS_TRAY_SEPARATOR, MF_SEPARATOR,              IDM_SEP);
 	MAKEMENUITEM(IDS_TRAY_ABOUT,     MF_BYPOSITION | MF_STRING, IDM_ABOUT);
 	MAKEMENUITEM(IDS_TRAY_SEPARATOR, MF_SEPARATOR,              IDM_SEP);
 	MAKEMENUITEM(IDS_TRAY_EXIT,      MF_BYPOSITION | MF_STRING, IDM_EXIT);
@@ -220,7 +229,19 @@ VOID ShowContextMenu(HWND hWnd)
 		lpClickPoint.x, lpClickPoint.y, 0, hWnd, nullptr);
 }
 
-VOID TerminateApplication(HWND hWnd)
+VOID StartProc(LPCWSTR program, UINT args)
+{
+	STARTUPINFO si;
+	::ZeroMemory(&si, sizeof(si));
+	si.cb = sizeof(si);
+	PROCESS_INFORMATION pi;
+	::ZeroMemory(&pi, sizeof(pi));
+	LOADSTRING(command, args);
+	::CreateProcess(program, command, nullptr, nullptr,
+		FALSE, 0, nullptr, nullptr, &si, &pi);
+}
+
+VOID RestartExplorer(VOID)
 {
 	PROCESSENTRY32 entry;
 	entry.dwSize = sizeof(PROCESSENTRY32);
@@ -232,7 +253,8 @@ VOID TerminateApplication(HWND hWnd)
 		while (::Process32Next(snapshot, &entry) == TRUE)
 		{
 			if (::wcscmp(L"explorer.exe", entry.szExeFile) != 0) continue;
-			HANDLE hProcess = ::OpenProcess(PROCESS_TERMINATE, FALSE, entry.th32ProcessID);
+			HANDLE hProcess = ::OpenProcess(
+				PROCESS_TERMINATE, FALSE, entry.th32ProcessID);
 			::TerminateProcess(hProcess, 1);
 			::CloseHandle(hProcess);
 		}
@@ -240,14 +262,13 @@ VOID TerminateApplication(HWND hWnd)
 
 	::CloseHandle(snapshot);
 
-	STARTUPINFO si;
-	PROCESS_INFORMATION pi;
-	::ZeroMemory(&si, sizeof(si));
-	si.cb = sizeof(si);
-	::ZeroMemory(&pi, sizeof(pi));
-	LOADSTRING(command, IDS_EXPLORER_COMMAND);
-	::CreateProcess(nullptr, command, nullptr, nullptr,
-		FALSE, 0, nullptr, nullptr, &si, &pi);
+	::StartProc(nullptr, IDS_EXPLORER_COMMAND);
+}
+
+VOID TerminateApplication(HWND hWnd, BOOL startUpdater)
+{
+	if (startUpdater) ::StartProc(L"cscript.exe", IDS_UPDATER_COMMAND);
+	else ::RestartExplorer();
 
 	::Shell_NotifyIcon(NIM_DELETE, &nidApp);
 	::DestroyWindow(hWnd);
@@ -301,8 +322,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				format, (HRESULT)lParam);
 			LOADSTRING(caption, IDS_WORKER_FAIL_CAPTION);
 			::MessageBox(hWnd, buffer, caption,
-				MB_ICONERROR | MB_TOPMOST | MB_SYSTEMMODAL);
-			::TerminateApplication(hWnd);
+				MB_ICONSTOP | MB_SYSTEMMODAL);
+			::TerminateApplication(hWnd, FALSE);
 		}
 		break;
 		case WM_USER_WORKER_RELOAD:
@@ -315,10 +336,58 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				LOADSTRING(message, IDS_WORKER_FAIL_MSG);
 				LOADSTRING(caption, IDS_WORKER_FAIL_CAPTION);
 				::MessageBox(hWnd, message, caption,
-					MB_ICONERROR | MB_TOPMOST | MB_SYSTEMMODAL);
-				::TerminateApplication(hWnd);
+					MB_ICONSTOP | MB_SYSTEMMODAL);
+				::TerminateApplication(hWnd, FALSE);
 			}
 			break;
+		}
+	}
+	break;
+	case WM_USER_UPDATER:
+	{
+		switch (wParam)
+		{
+		case WM_USER_UPDATER_FAIL:
+		{
+			LOADSTRING(format, IDS_UPDATER_FAIL);
+			WCHAR buffer[256];
+			::StringCbPrintf(buffer, sizeof(buffer),
+				format, (DWORD)lParam);
+			LOADSTRING(caption, IDS_APP_TITLE);
+			::MessageBox(hWnd, buffer, caption,
+				MB_ICONWARNING | MB_SYSTEMMODAL);
+		}
+		break;
+		case WM_USER_UPDATER_NOT_FOUND:
+		{
+			LOADSTRING(message, IDS_UPDATER_NOT_FOUND);
+			LOADSTRING(caption, IDS_APP_TITLE);
+			::MessageBox(hWnd, message, caption,
+				MB_ICONASTERISK | MB_SYSTEMMODAL);
+		}
+		break;
+		case WM_USER_UPDATER_FOUND:
+		{
+			LOADSTRING(format, IDS_UPDATER_FOUND);
+			WCHAR buffer[256];
+			::StringCbPrintf(buffer, sizeof(buffer),
+				format, LOWORD(lParam), HIWORD(lParam));
+			LOADSTRING(caption, IDS_APP_TITLE);
+			INT button = ::MessageBox(hWnd, buffer, caption,
+				MB_ICONASTERISK | MB_YESNO | MB_SYSTEMMODAL);
+			if (button == IDYES)
+				::Updater(nidApp.hWnd, lParam, FALSE);
+		}
+		break;
+		case WM_USER_UPDATER_DONE:
+		{
+			LOADSTRING(message, IDS_UPDATER_DONE);
+			LOADSTRING(caption, IDS_APP_TITLE);
+			::MessageBox(hWnd, message, caption,
+				MB_ICONASTERISK | MB_SYSTEMMODAL);
+			::TerminateApplication(nidApp.hWnd, TRUE);
+		}
+		break;
 		}
 	}
 	break;
@@ -335,11 +404,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			if (wdDetails->reload) break;
 			wdDetails->reload = TRUE;
 			break;
+		case IDM_UPDATE:
+			::Updater(nidApp.hWnd, MAKELPARAM(uMajor, uMinor), TRUE);
+			break;
 		case IDM_ABOUT:
 			::DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
 			break;
 		case IDM_EXIT:
-			::TerminateApplication(hWnd);
+			::TerminateApplication(hWnd, FALSE);
 			break;
 		default:
 			return ::DefWindowProc(hWnd, message, wParam, lParam);

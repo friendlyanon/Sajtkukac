@@ -19,6 +19,12 @@
 #define IDS_WORKER_FAIL_FORMAT          112
 #define IDS_WORKER_FAIL_MSG             113
 #define IDS_WORKER_FAIL_CAPTION         114
+#define IDS_TRAY_UPDATE                 115
+#define IDS_UPDATER_FOUND               116
+#define IDS_UPDATER_NOT_FOUND           117
+#define IDS_UPDATER_FAIL                118
+#define IDS_UPDATER_DONE                119
+#define IDS_UPDATER_COMMAND             120
 #define IDR_MAINFRAME                   128
 #define IDC_PERCENTAGE_SLIDER           1001
 #define IDC_PERCENTAGE_EDIT             1004
@@ -31,6 +37,7 @@
 #define IDC_BUTTON2                     1010
 #define IDM_SETTINGS                    8191
 #define IDM_RELOAD                      8192
+#define IDM_UPDATE                      8193
 #define IDM_EXIT                        16383
 #define IDM_SEP                         32767
 #define IDC_STATIC                      -1
