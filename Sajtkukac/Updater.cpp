@@ -18,7 +18,6 @@
 
 #include "stdafx.h"
 #include "Updater.h"
-#include "PtrMacros.h"
 
 #pragma comment (lib, "Wininet.lib")
 #pragma comment (lib, "urlmon.lib")
@@ -38,8 +37,6 @@ struct UPDATER_DETAILS
 
 }
 
-// FIXME: Optimizations cause major and minor to parse to 0
-#pragma optimize("", off)
 DWORD WINAPI CheckUpdate(LPVOID pParam)
 {
 #define RET(val) return returnValue = val
@@ -54,8 +51,7 @@ DWORD WINAPI CheckUpdate(LPVOID pParam)
 	HWND hWnd = details->hWnd;
 	LPARAM lParam = details->lParam;
 
-	ULONG major;
-	ULONG minor;
+	ULONG major = 0, minor = 0;
 
 	SCOPE_EXIT{
 		networking = FALSE;
@@ -87,13 +83,13 @@ DWORD WINAPI CheckUpdate(LPVOID pParam)
 			"Mozilla/4.0 (compatible; MSIE 11.0; Windows NT 10.0)");
 	}
 
-	SCOPED_INET_PTR(hInet, ::InternetOpenA(
+	INET_PTR(hInet, ::InternetOpenA(
 		userAgent, INTERNET_OPEN_TYPE_PRECONFIG,
 		nullptr, nullptr, 0));
 
 	if (hInet == nullptr) RET(UPDATE_INET_ERROR);
 
-	SCOPED_INET_PTR(hConn, ::InternetConnectA(
+	INET_PTR(hConn, ::InternetConnectA(
 		hInet, "github.com", INTERNET_DEFAULT_HTTPS_PORT,
 		nullptr, nullptr, INTERNET_SERVICE_HTTP, 0,
 		INTERNET_NO_CALLBACK));
@@ -102,7 +98,7 @@ DWORD WINAPI CheckUpdate(LPVOID pParam)
 
 	LPCSTR acceptTypes[]{ "*/*", nullptr };
 
-	SCOPED_INET_PTR(hReq, ::HttpOpenRequestA(
+	INET_PTR(hReq, ::HttpOpenRequestA(
 		hConn, "HEAD", "/friendlyanon/Sajtkukac/releases/latest",
 		"HTTP/1.1", *acceptTypes, nullptr,
 		INTERNET_FLAG_SECURE | INTERNET_FLAG_NO_AUTO_REDIRECT,
@@ -116,24 +112,27 @@ DWORD WINAPI CheckUpdate(LPVOID pParam)
 	CHAR buffer[INTERNET_MAX_URL_LENGTH];
 	DWORD bufferSize;
 	if (!::HttpQueryInfoA(hReq, HTTP_QUERY_LOCATION,
-		buffer, &bufferSize, 0))
+		buffer, &bufferSize, nullptr))
 	{
 		if (::GetLastError() == ERROR_HTTP_HEADER_NOT_FOUND)
 			RET(UPDATE_NOT_FOUND);
 	}
 
-	for (PCHAR ptr = &(buffer[bufferSize - 1]);; --ptr)
+	if (bufferSize < 20) RET(UPDATE_NOT_FOUND);
+
+	for (PCHAR ptr = buffer + bufferSize;;)
 	{
-		if (*ptr != '/') continue;
-		major = ::strtol(ptr + 2, nullptr, 10);
-		minor = ::strtol(::strchr(ptr, '.') + 1, nullptr, 10);
+		if (*--ptr != '/') continue;
+		major = ::strtol(ptr + 2, &ptr, 10);
+		minor = ::strtol(ptr + 1, nullptr, 10);
 		break;
 	}
 
-	RET((major != LOWORD(lParam) || minor != HIWORD(lParam))
-		? UPDATE_FOUND : UPDATE_NOT_FOUND);
+	BOOL newer = major > LOWORD(lParam) ||
+		major == LOWORD(lParam) && minor > HIWORD(lParam);
+
+	RET(newer ? UPDATE_FOUND : UPDATE_NOT_FOUND);
 }
-#pragma optimize("", on)
 
 DWORD WINAPI UpdateApplication(LPVOID pParam)
 {
@@ -174,7 +173,7 @@ DWORD WINAPI UpdateApplication(LPVOID pParam)
 			"Mozilla/4.0 (compatible; MSIE 11.0; Windows NT 10.0)");
 	}
 
-	SCOPED_INET_PTR(hInet, ::InternetOpenA(
+	INET_PTR(hInet, ::InternetOpenA(
 		userAgent, INTERNET_OPEN_TYPE_DIRECT,
 		nullptr, nullptr, 0));
 
@@ -185,7 +184,7 @@ DWORD WINAPI UpdateApplication(LPVOID pParam)
 		"https://github.com/friendlyanon/Sajtkukac/releases/download/v%d.%d/Sajtkukac_v%d.%d.zip",
 		major, minor, major, minor);
 
-	SCOPED_INET_PTR(hUrl, ::InternetOpenUrlA(
+	INET_PTR(hUrl, ::InternetOpenUrlA(
 		hInet, pathname, nullptr, 0,
 		INTERNET_FLAG_SECURE | INTERNET_FLAG_RELOAD, 0));
 

@@ -1,6 +1,6 @@
 /* Sajtkukac - customizes the position of icons on your Windows taskbar
  * Copyright (C) 2019 friendlyanon <skype1234@waifu.club>
- * PtrMacros.h is part of Sajtkukac.
+ * Easing.h is part of Sajtkukac.
  *
  * Sajtkukac is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,16 +18,7 @@
 
 #pragma once
 
-// return if result is not null
-#define CHK_HR(x) if (auto r = x; r) return r
-// release if x is not nullptr
-#define RELEASE(x) if (auto r = x; r != nullptr) r->Release()
-// declare pointer and init with nullptr
-#define Z_PTR(type, id) \
-	type * id = nullptr
-// declare scoped pointer with release scope exit function
-#define SCOPED_PTR(type, id) Z_PTR(type, id); \
-	SCOPE_EXIT{ if (id != nullptr && !id->Release()) id = nullptr; }
-
-#define INET_PTR(id, val)  HINTERNET id = val; \
-	SCOPE_EXIT{ if (id != nullptr) { ::InternetCloseHandle(id); id = nullptr; } }
+extern const std::vector<std::pair<
+	LPCWSTR,
+	std::function<double(double, double, double, double)>
+>> easingFunctions;

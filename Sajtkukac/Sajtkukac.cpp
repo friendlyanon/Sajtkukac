@@ -18,8 +18,8 @@
 
 #include "stdafx.h"
 #include "Sajtkukac.h"
-#include "PtrMacros.h"
-#include "easing/Easing.h"
+#include "Easing.h"
+#include "simple_match/simple_match.hpp"
 
 namespace simple_match::customization {
 	template<>
@@ -51,8 +51,8 @@ typedef std::unordered_map<
 
 DWORD dwThreadID = 0;
 HANDLE hThread = nullptr;
-DECLARE_PTR(IUIAutomation, g_pUI);
-DECLARE_PTR(IUIAutomationTreeWalker, g_pControlWalker);
+Z_PTR(IUIAutomation, g_pUI);
+Z_PTR(IUIAutomationTreeWalker, g_pControlWalker);
 BSTR g_bstrs[3] = {
 	::SysAllocString(L"Shell_TrayWnd"),
 	::SysAllocString(L"Shell_SecondaryTrayWnd"),
@@ -63,32 +63,28 @@ BSTR g_bstrs[3] = {
 
 HRESULT GetWidthOfChildren(BOOL vertical, IUIAutomationElement *taskList, PUINT result)
 {
-	SCOPED_PTR(IUIAutomationCondition, buttonCond);
-	{
-		VARIANT var{ VT_I4 };
-		var.lVal = UIA_ButtonControlTypeId;
-		CHECK_HR(g_pUI->CreatePropertyCondition(UIA_ControlTypePropertyId,
-			var, &buttonCond));
-	}
+	CComPtr<IUIAutomationCondition> buttonCond;
+	CHK_HR(g_pUI->CreatePropertyCondition(UIA_ControlTypePropertyId,
+		CComVariant{ UIA_ButtonControlTypeId }, &buttonCond));
 
-	SCOPED_PTR(IUIAutomationElementArray, children);
-	CHECK_HR(taskList->FindAll(TreeScope_Children,
+	CComPtr<IUIAutomationElementArray> children;
+	CHK_HR(taskList->FindAll(TreeScope_Children,
 		buttonCond, &children));
 
 	INT length;
-	CHECK_HR(children->get_Length(&length));
+	CHK_HR(children->get_Length(&length));
 
 	if (length <= 0) return S_OK;
 
-	SCOPED_PTR(IUIAutomationElement, first);
-	CHECK_HR(children->GetElement(0, &first));
+	CComPtr<IUIAutomationElement> first;
+	CHK_HR(children->GetElement(0, &first));
 	RECT fRect;
-	CHECK_HR(first->get_CurrentBoundingRectangle(&fRect));
+	CHK_HR(first->get_CurrentBoundingRectangle(&fRect));
 
-	SCOPED_PTR(IUIAutomationElement, last);
-	CHECK_HR(children->GetElement(length - 1, &last));
+	CComPtr<IUIAutomationElement> last;
+	CHK_HR(children->GetElement(length - 1, &last));
 	RECT lRect;
-	CHECK_HR(last->get_CurrentBoundingRectangle(&lRect));
+	CHK_HR(last->get_CurrentBoundingRectangle(&lRect));
 
 	*result = vertical
 		? lRect.bottom - fRect.top
@@ -101,13 +97,13 @@ static constexpr INT animationIterations = 30;
 static constexpr INT animationWait = 10;
 static constexpr DOUBLE animationDuration = animationIterations * animationWait;
 
-HRESULT MoveTaskList(BOOL vertical, UINT percentage,
+HRESULT MoveTaskList(BOOL vertical, UINT percentage, UINT easingIdx,
 	RECT dRect, IUIAutomationElement *taskList)
 {
 	RECT tRect;
-	CHECK_HR(taskList->get_CurrentBoundingRectangle(&tRect));
+	CHK_HR(taskList->get_CurrentBoundingRectangle(&tRect));
 	UINT width = 0;
-	CHECK_HR(::GetWidthOfChildren(vertical, taskList, &width));
+	CHK_HR(::GetWidthOfChildren(vertical, taskList, &width));
 
 	const DOUBLE dPerc = percentage / 100.0;
 	const DOUBLE desktopPoint = (vertical ? dRect.bottom : dRect.right) * dPerc;
@@ -119,7 +115,7 @@ HRESULT MoveTaskList(BOOL vertical, UINT percentage,
 	if (::abs(difference) < 5.0) return S_OK;
 
 	UIA_HWND hWnd;
-	CHECK_HR(taskList->get_CurrentNativeWindowHandle(&hWnd));
+	CHK_HR(taskList->get_CurrentNativeWindowHandle(&hWnd));
 
 	auto posSetter = [h = (HWND)hWnd, f = 0x4415u, vertical]
 		(DOUBLE x, DOUBLE y = 0.0) noexcept -> HRESULT
@@ -133,14 +129,15 @@ HRESULT MoveTaskList(BOOL vertical, UINT percentage,
 
 	const DOUBLE tUnit = 1.0 / animationIterations * animationDuration;
 	DOUBLE currentTime = 0.0;
+	const auto& easeFn = easingFunctions[easingIdx].second;
 	for (int i = 0; i < animationIterations; ++i, currentTime += tUnit)
 	{
-		const DOUBLE step = ::EaseOutBack(
+		const DOUBLE step = easeFn(
 			currentTime, startValue, difference, animationDuration);
-		CHECK_HR(posSetter(step));
+		CHK_HR(posSetter(step));
 		::Sleep(animationWait);
 	}
-	CHECK_HR(posSetter(desktopPoint - taskListPoint));
+	CHK_HR(posSetter(desktopPoint - taskListPoint));
 
 	return S_OK;
 }
@@ -151,39 +148,35 @@ HRESULT PopulateTrayMap(IUIAutomationElement *pDesktop, TRAYMAP &pTrayMap)
 	SCOPE_EXIT{ for (int i = 0; i < 2; ++i) RELEASE(conditions[i]); };
 	for (int i = 0; i < 2; ++i)
 	{
-		DECLARE_PTR(IUIAutomationCondition, prop);
-		VARIANT var{ VT_BSTR };
-		var.bstrVal = g_bstrs[i];
-		CHECK_HR(g_pUI->CreatePropertyCondition(
-			UIA_ClassNamePropertyId, var, &prop));
+		Z_PTR(IUIAutomationCondition, prop);
+		CHK_HR(g_pUI->CreatePropertyCondition(
+			UIA_ClassNamePropertyId, CComVariant{ g_bstrs[i] },
+			&prop));
 		conditions[i] = prop;
 	}
 
-	SCOPED_PTR(IUIAutomationCondition, orCondition);
-	CHECK_HR(g_pUI->CreateOrConditionFromNativeArray(
+	CComPtr<IUIAutomationCondition> orCondition;
+	CHK_HR(g_pUI->CreateOrConditionFromNativeArray(
 		conditions, 2, &orCondition));
 
-	SCOPED_PTR(IUIAutomationElementArray, sysTrays);
-	CHECK_HR(pDesktop->FindAll(TreeScope_Children,
+	CComPtr<IUIAutomationElementArray> sysTrays;
+	CHK_HR(pDesktop->FindAll(TreeScope_Children,
 		orCondition, &sysTrays));
 	{
 		int length;
-		CHECK_HR(sysTrays->get_Length(&length));
+		CHK_HR(sysTrays->get_Length(&length));
 		if (!length) return S_OK;
 		for (int i = 0; i < length; ++i)
 		{
-			DECLARE_PTR(IUIAutomationElement, sysTray);
-			CHECK_HR(sysTrays->GetElement(i, &sysTray));
+			Z_PTR(IUIAutomationElement, sysTray);
+			CHK_HR(sysTrays->GetElement(i, &sysTray));
 
-			DECLARE_PTR(IUIAutomationElement, taskList);
-			SCOPED_PTR(IUIAutomationCondition, prop);
-			{
-				VARIANT var{ VT_BSTR };
-				var.bstrVal = g_bstrs[2];
-				CHECK_HR(g_pUI->CreatePropertyCondition(
-					UIA_ClassNamePropertyId, var, &prop));
-			}
-			CHECK_HR(sysTray->FindFirst(TreeScope_Descendants,
+			Z_PTR(IUIAutomationElement, taskList);
+			CComPtr<IUIAutomationCondition> prop;
+			CHK_HR(g_pUI->CreatePropertyCondition(
+				UIA_ClassNamePropertyId, CComVariant{ g_bstrs[2] },
+				&prop));
+			CHK_HR(sysTray->FindFirst(TreeScope_Descendants,
 				prop, &taskList));
 			pTrayMap[sysTray] = taskList;
 		}
@@ -191,13 +184,13 @@ HRESULT PopulateTrayMap(IUIAutomationElement *pDesktop, TRAYMAP &pTrayMap)
 	return S_OK;
 }
 
-HRESULT SajtkukacImpl(UINT percentage)
+HRESULT SajtkukacImpl(UINT percentage, UINT easingIdx)
 {
 	using namespace simple_match;
 	using namespace simple_match::placeholders;
 
-	SCOPED_PTR(IUIAutomationElement, pDesktop);
-	CHECK_HR(g_pUI->GetRootElement(&pDesktop));
+	CComPtr<IUIAutomationElement> pDesktop;
+	CHK_HR(g_pUI->GetRootElement(&pDesktop));
 
 	TRAYMAP trayMap;
 	SCOPE_EXIT{
@@ -208,15 +201,15 @@ HRESULT SajtkukacImpl(UINT percentage)
 		}
 		trayMap.clear();
 	};
-	CHECK_HR(::PopulateTrayMap(pDesktop, trayMap));
+	CHK_HR(::PopulateTrayMap(pDesktop, trayMap));
 
 	RECT dRect;
-	CHECK_HR(pDesktop->get_CurrentBoundingRectangle(&dRect));
+	CHK_HR(pDesktop->get_CurrentBoundingRectangle(&dRect));
 
 	for (auto [sysTray, taskList] : trayMap)
 	{
 		RECT sRect;
-		CHECK_HR(sysTray->get_CurrentBoundingRectangle(&sRect));
+		CHK_HR(sysTray->get_CurrentBoundingRectangle(&sRect));
 
 		TrayPosition pos = match(dRect,
 			ds(_, sRect.top, sRect.right, sRect.bottom),
@@ -232,43 +225,42 @@ HRESULT SajtkukacImpl(UINT percentage)
 			[] { return TrayPosition::UNKNOWN; }
 		);
 
+#define MOVE(x) \
+	CHK_HR(::MoveTaskList(x, percentage, easingIdx, dRect, taskList))
 		switch (pos)
 		{
 		case TrayPosition::LEFT:
 		case TrayPosition::RIGHT:
-			CHECK_HR(::MoveTaskList(TRUE, percentage, dRect, taskList));
+			MOVE(TRUE);
 			break;
 		case TrayPosition::TOP:
 		case TrayPosition::BOTTOM:
-			CHECK_HR(::MoveTaskList(FALSE, percentage, dRect, taskList));
+			MOVE(FALSE);
 			break;
 		}
+#undef MOVE
 	}
 	return S_OK;
 }
 
 HRESULT CreateControlWalker(VOID)
 {
-	DECLARE_PTR(IUIAutomationCondition, propCond);
-	{
-		VARIANT var{ VT_BOOL };
-		var.boolVal = FALSE;
-		CHECK_HR(g_pUI->CreatePropertyCondition(
-			UIA_IsControlElementPropertyId, var, &propCond));
-	}
-	DECLARE_PTR(IUIAutomationCondition, notCondition);
-	CHECK_HR(g_pUI->CreateNotCondition(propCond, &notCondition));
-	CHECK_HR(g_pUI->CreateTreeWalker(notCondition, &g_pControlWalker));
+	Z_PTR(IUIAutomationCondition, propCond);
+	CHK_HR(g_pUI->CreatePropertyCondition(
+		UIA_IsControlElementPropertyId, CComVariant{ false }, &propCond));
+	Z_PTR(IUIAutomationCondition, notCondition);
+	CHK_HR(g_pUI->CreateNotCondition(propCond, &notCondition));
+	CHK_HR(g_pUI->CreateTreeWalker(notCondition, &g_pControlWalker));
 	return S_OK;
 }
 
 HRESULT SajtkukacInit(VOID)
 {
-	CHECK_HR(::CoInitialize(nullptr));
-	CHECK_HR(::CoCreateInstance(__uuidof(CUIAutomation),
+	CHK_HR(::CoInitialize(nullptr));
+	CHK_HR(::CoCreateInstance(__uuidof(CUIAutomation),
 		nullptr, CLSCTX_INPROC_SERVER, __uuidof(IUIAutomation),
 		(LPVOID *)&g_pUI));
-	CHECK_HR(::CreateControlWalker());
+	CHK_HR(::CreateControlWalker());
 	return S_OK;
 }
 
@@ -290,7 +282,7 @@ DWORD WINAPI Sajtkukac(PVOID pParam)
 			WM_USER_WORKER_FAILURE, returnCode);
 	};
 
-	CHECK_HR(returnCode = ::SajtkukacInit());
+	CHK_HR(returnCode = ::SajtkukacInit());
 	SCOPE_EXIT{
 		RELEASE(g_pControlWalker);
 		g_pControlWalker = nullptr;
@@ -301,14 +293,16 @@ DWORD WINAPI Sajtkukac(PVOID pParam)
 
 	volatile auto reload = &(*details)->reload;
 	volatile auto refreshRate = (*details)->refreshRate;
+	volatile auto i = (*details)->easingIdx;
 	for (volatile auto p = (*details)->percentage;
-		!*reload && !(returnCode = ::SajtkukacImpl(*p));
+		!*reload && !(returnCode = ::SajtkukacImpl(*p, *i));
 		::Sleep(*refreshRate));
 
 	return returnCode;
 }
 
-BOOL Init(HWND hWnd, PUINT pPercentage, PUINT pRefreshRate, WORKER_DETAILS **wdDetails)
+BOOL Init(HWND hWnd, PUINT pPercentage, PUINT pRefreshRate,
+	PUINT easingIdx, WORKER_DETAILS **wdDetails)
 {
 	if (*wdDetails != nullptr)
 	{
@@ -319,7 +313,8 @@ BOOL Init(HWND hWnd, PUINT pPercentage, PUINT pRefreshRate, WORKER_DETAILS **wdD
 		}
 	}
 	
-	*wdDetails = new (::std::nothrow) WORKER_DETAILS{ pPercentage, pRefreshRate, hWnd };
+	*wdDetails = new (::std::nothrow) WORKER_DETAILS{
+		pPercentage, pRefreshRate, easingIdx, hWnd };
 	hThread = ::CreateThread(0, 0, (LPTHREAD_START_ROUTINE)::Sajtkukac,
 		wdDetails, 0, &dwThreadID);
 

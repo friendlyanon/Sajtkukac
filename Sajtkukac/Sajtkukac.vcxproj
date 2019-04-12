@@ -174,9 +174,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="IniFile.h" />
     <ClInclude Include="PtrMacros.h" />
     <ClInclude Include="scopeexit\\ScopeExit.h" />
-    <ClInclude Include="easing\\Easing.h" />
+    <ClInclude Include="Easing.h" />
     <ClInclude Include="Sajtkukac.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="main.h" />
@@ -185,6 +186,8 @@
     <ClInclude Include="Updater.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Easing.cpp" />
+    <ClCompile Include="IniFile.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Sajtkukac.cpp" />
     <ClCompile Include="stdafx.cpp">

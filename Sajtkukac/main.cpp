@@ -19,9 +19,13 @@
 #include "stdafx.h"
 #include "main.h"
 #include "Updater.h"
-#include "scopeexit/ScopeExit.h"
+#include "IniFile.h"
+#include "Easing.h"
 
 #pragma comment (lib, "Version.lib")
+#pragma comment (linker, "\"/manifestdependency:type='win32' \
+name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
+processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 #define MAX_LOADSTRING (100)
 #define WM_USER_SHELLICON (WM_USER + 1)
@@ -34,20 +38,20 @@ WCHAR szTitle[MAX_LOADSTRING];         // the title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];   // the main window class name
 UINT uPercentage;                      // position of the icons
 UINT uRefreshRate;                     // refresh rate in milliseconds
+UINT uEasingIdx;                       // index of the easing function
 WORKER_DETAILS *wdDetails = nullptr;   // struct to communicate with worker
-HANDLE hMutex = nullptr;               // single instance mutex
-UINT uMajor = 0, uMinor = 3;           // current version
+UINT uMajor = 0, uMinor = 4;           // current version
 
 // TODO: fall back to system icons until someone makes one :)
 #ifndef IDI_SAJTKUKAC
 #define SHELL_ICON_ID (3)
-HINSTANCE hShell32 = ::LoadLibrary(L"shell32.dll");
+HINSTANCE hShell32 = ::LoadLibraryA("shell32.dll");
 HICON hShellIcon = ::LoadIcon(hShell32, MAKEINTRESOURCE(SHELL_ICON_ID));
 HICON hSmallShellIcon = ::LoadIcon(hShell32, MAKEINTRESOURCE(SHELL_ICON_ID));
 #endif
 
 // Forward declarations of functions included in this code module:
-ATOM             MyRegisterClass(HINSTANCE hInstance);
+ATOM             RegisterSajtkukacClass(HINSTANCE hInstance);
 BOOL             InitInstance(HINSTANCE, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK Settings(HWND, UINT, WPARAM, LPARAM);
@@ -65,53 +69,30 @@ int APIENTRY wWinMain(
 	_In_ LPWSTR    lpCmdLine,
 	_In_ int       nCmdShow)
 {
+	UNREFERENCED_PARAMETER(lpCmdLine);
 	UNREFERENCED_PARAMETER(hPrevInstance);
 
 	// Detect already running instance
-	hMutex = ::OpenMutex(MUTEX_ALL_ACCESS, FALSE,
-		L"Global\\SajtkukacSingleInstance");
-	if (hMutex != nullptr) return 1;
-	hMutex = ::CreateMutex(nullptr, FALSE,
-		L"Global\\SajtkukacSingleInstance");
-	SCOPE_EXIT{ ::ReleaseMutex(hMutex); };
+	HANDLE hMutex = ::CreateMutex(0, TRUE, L"Sajtkukac");
+	if (GetLastError() == ERROR_ALREADY_EXISTS) return 1;
+	SCOPE_EXIT{ ::CloseHandle(hMutex); };
 
 	// Initialize globals
 	::LoadString(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
 	::LoadString(hInstance, IDC_SAJTKUKAC, szWindowClass, MAX_LOADSTRING);
-	::MyRegisterClass(hInstance);
-	if (::wcslen(lpCmdLine) > 0)
-	{
-		if (INT ret = ::_wtoi(lpCmdLine); ret < 0 || 100 < ret)
-		{
-			uPercentage = 50;
-		}
-		else
-		{
-			uPercentage = ret;
-		}
-		if (auto ptr = ::wcschr(lpCmdLine, L' '); ptr != nullptr)
-		{
-			if (INT ret = ::_wtoi(ptr); ret < 50 || 10000 < ret)
-			{
-				uRefreshRate = 500;
-			}
-			else
-			{
-				uRefreshRate = ret;
-			}
-		}
-	}
-	else
-	{
-		uPercentage = 50;
-		uRefreshRate = 500;
-	}
+	::RegisterSajtkukacClass(hInstance);
+	::ReadIni(uPercentage, uRefreshRate, uEasingIdx);
+	if (uPercentage > 100) uPercentage = 50;
+	if (uRefreshRate < 50 || 10000 < uRefreshRate) uRefreshRate = 500;
+	if (uEasingIdx >= easingFunctions.size()) uEasingIdx = 25;
 
 	// Perform application initialization
 	if (!::InitInstance(hInstance, nCmdShow) || !::InitWorker())
 	{
 		return 1;
 	}
+
+	::WriteIni(uPercentage, uRefreshRate, uEasingIdx);
 
 	HACCEL hAccelTable = ::LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SAJTKUKAC));
 	MSG msg;
@@ -129,7 +110,7 @@ int APIENTRY wWinMain(
 	return (int)msg.wParam;
 }
 
-ATOM MyRegisterClass(HINSTANCE hInstance)
+ATOM RegisterSajtkukacClass(HINSTANCE hInstance)
 {
 	WNDCLASSEXW wcex;
 
@@ -192,7 +173,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 BOOL InitWorker(VOID)
 {
-	return ::Init(nidApp.hWnd, &uPercentage, &uRefreshRate, &wdDetails);
+	return ::Init(nidApp.hWnd, &uPercentage, &uRefreshRate,
+		&uEasingIdx, &wdDetails);
 }
 
 #define LOADSTRING(name, id) \
@@ -203,23 +185,22 @@ VOID ShowContextMenu(HWND hWnd)
 {
 	hPopMenu = ::CreatePopupMenu();
 
-#define MAKEMENUITEM(a, b, c) do {            \
-	LOADSTRING(m, a);                         \
-	BSTR m_bstr = SysAllocString(m);          \
-	::InsertMenu(hPopMenu, -1, b, c, m_bstr); \
-	::SysFreeString(m_bstr);                  \
-} while(FALSE)
+	constexpr auto makeMenuItem = [&](UINT nameId, UINT flags, UINT menuId)
+	{
+		LOADSTRING(m, nameId);
+		BSTR m_bstr = SysAllocString(m);
+		::InsertMenu(hPopMenu, -1, flags, menuId, m_bstr);
+		::SysFreeString(m_bstr);
+	};
 
-	MAKEMENUITEM(IDS_TRAY_SETTINGS,  MF_BYPOSITION | MF_STRING, IDM_SETTINGS);
-	MAKEMENUITEM(IDS_TRAY_RELOAD,    MF_BYPOSITION | MF_STRING, IDM_RELOAD);
-	MAKEMENUITEM(IDS_TRAY_SEPARATOR, MF_SEPARATOR,              IDM_SEP);
-	MAKEMENUITEM(IDS_TRAY_UPDATE,    MF_BYPOSITION | MF_STRING, IDM_UPDATE);
-	MAKEMENUITEM(IDS_TRAY_SEPARATOR, MF_SEPARATOR,              IDM_SEP);
-	MAKEMENUITEM(IDS_TRAY_ABOUT,     MF_BYPOSITION | MF_STRING, IDM_ABOUT);
-	MAKEMENUITEM(IDS_TRAY_SEPARATOR, MF_SEPARATOR,              IDM_SEP);
-	MAKEMENUITEM(IDS_TRAY_EXIT,      MF_BYPOSITION | MF_STRING, IDM_EXIT);
-
-#undef MAKEMENUITEM
+	makeMenuItem(IDS_TRAY_SETTINGS,  MF_BYPOSITION | MF_STRING, IDM_SETTINGS);
+	makeMenuItem(IDS_TRAY_RELOAD,    MF_BYPOSITION | MF_STRING, IDM_RELOAD);
+	makeMenuItem(IDS_TRAY_SEPARATOR, MF_SEPARATOR,              IDM_SEP);
+	makeMenuItem(IDS_TRAY_UPDATE,    MF_BYPOSITION | MF_STRING, IDM_UPDATE);
+	makeMenuItem(IDS_TRAY_SEPARATOR, MF_SEPARATOR,              IDM_SEP);
+	makeMenuItem(IDS_TRAY_ABOUT,     MF_BYPOSITION | MF_STRING, IDM_ABOUT);
+	makeMenuItem(IDS_TRAY_SEPARATOR, MF_SEPARATOR,              IDM_SEP);
+	makeMenuItem(IDS_TRAY_EXIT,      MF_BYPOSITION | MF_STRING, IDM_EXIT);
 
 	::SetForegroundWindow(hWnd);
 
@@ -446,11 +427,38 @@ INT_PTR CALLBACK Settings(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 			TBM_SETPAGESIZE, 0, 1);
 		::SendDlgItemMessage(hDlg, IDC_PERCENTAGE_SLIDER,
 			TBM_SETPOS, TRUE, uPercentage);
+		for (const auto& pair : easingFunctions) {
+			::SendDlgItemMessage(hDlg, IDC_EASING_COMBO,
+				CB_ADDSTRING, 0,
+				reinterpret_cast<LPARAM>(pair.first));
+		}
+		::SendDlgItemMessage(hDlg, IDC_EASING_COMBO,
+			CB_SETCURSEL, uEasingIdx, 0);
 		::SetDlgItemInt(hDlg, IDC_PERCENTAGE_EDIT,
 			uPercentage, TRUE);
 		::SetDlgItemInt(hDlg, IDC_REFRESH_EDIT,
 			uRefreshRate, TRUE);
 		return (INT_PTR)TRUE;
+	case WM_NOTIFY:
+	{
+		LPNMHDR header = (LPNMHDR)lParam;
+		switch (header->code)
+		{
+		case NM_CLICK:
+		case NM_RETURN:
+		{
+			PNMLINK pNMLink = (PNMLINK)lParam;
+			LITEM item = pNMLink->item;
+			if (header->idFrom == IDC_SYSLINK1 && item.iLink == 0)
+			{
+				::ShellExecute(hDlg, nullptr, item.szUrl,
+					nullptr, nullptr, SW_SHOW);
+			}
+		}
+		break;
+		}
+	}
+	break;
 	case WM_COMMAND:
 	{
 		WORD wNotifyCode = HIWORD(wParam);
@@ -483,8 +491,14 @@ INT_PTR CALLBACK Settings(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 		}
 		break;
+		case IDC_EASING_COMBO:
+			if (wNotifyCode != CBN_SELCHANGE) break;
+			uEasingIdx = ::SendDlgItemMessage(hDlg,
+				IDC_EASING_COMBO, CB_GETCURSEL, 0, 0);
+		break;
 		case IDOK:
 		case IDCANCEL:
+			::WriteIni(uPercentage, uRefreshRate, uEasingIdx);
 			::EndDialog(hDlg, 0);
 		}
 	}

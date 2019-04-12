@@ -27,11 +27,10 @@
 
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 #define _HAS_EXCEPTIONS 0
+#define _USE_MATH_DEFINES
 // Windows Header Files
 #include <windows.h>
 #include <windowsx.h>
-#include <Windef.h>
-#include <ShlDisp.h>
 #include <shellapi.h>
 #include <commctrl.h>
 #include <ole2.h>
@@ -41,9 +40,7 @@
 #include <tlhelp32.h>
 #include <wininet.h>
 #include <urlmon.h>
-#if (NTDDI_VERSION >= NTDDI_WIN8)
-#include <Pathcch.h>
-#endif
+#include <atlbase.h>
 
 // C RunTime Header Files
 #include <malloc.h>
@@ -52,8 +49,14 @@
 
 // C++ Runtime Header Files
 #include <array>
+#include <cmath>
 #include <cstdlib>
-#include <simple_match/simple_match.hpp>
+#include <functional>
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <experimental/filesystem>
+
+// Custom header files
+#include "scopeexit/ScopeExit.h"
+#include "PtrMacros.h"

@@ -35,6 +35,8 @@
 #define IDC_REFRESH_SPIN                1009
 #define IDC_BUTTON1                     1009
 #define IDC_BUTTON2                     1010
+#define IDC_EASING_COMBO                1011
+#define IDC_SYSLINK1                    1013
 #define IDM_SETTINGS                    8191
 #define IDM_RELOAD                      8192
 #define IDM_UPDATE                      8193
@@ -49,7 +51,7 @@
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        130
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1011
+#define _APS_NEXT_CONTROL_VALUE         1014
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
 #endif
