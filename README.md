@@ -10,31 +10,25 @@ C++ tool for Windows to make your taskbar icons stay in the center.
 ## Usage
 After opening the exe, it will show up in your system tray.  
 Right clicking will bring up a menu with the following options:
- * `Settings`: here you may configure how the icons should be placed and how
- often should the software refresh the position of the icons.
+ * `Settings`: here you may configure how the icons should be placed, how often
+ should the software refresh the position of the icons and what kind of easing
+ algorithm should be used.
  * `Reload`: reloads the worker, in case anything may happen that makes it stop
  working.
+ * `Check for updates`: allows the user to manually check for a new update and
+ then apply it automatically.
  * `About`: shows the about dialog.
  * `Exit`: reloads Explorer to reset the UI and terminatesthe software.
 
-The software takes optional command line arguments:
-```
-Sajtkukac.exe [percentage] [refreshrate]
-```
-
-`percentage`: a numerical value corresponding to the first setting in the
-settings dialog.  
-`refreshrate`: a numerical value corresponding to the second setting in the
-settings dialog.
-
-These are useful for setting autostart up for the software.
+The software download includes `Sajtkukac_example.ini` that contains information
+about the possible settings and the meaning of their values.  
+You may rename this included example configuration to `Sajtkukac.ini` or if not
+present the software will create it automatically.
 
 ### Autostart
 The easiest way of making this software start automatically when you log in is
 by creating a shortcut for the software and placing the shortcut in the
-`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\` folder.  
-You may configure the software by passing command line arguments to it via the
-shortcut.
+`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\` folder.
 
 ## Contribution
 Ideas, translations, design changes, code cleaning or real heavy code changes
