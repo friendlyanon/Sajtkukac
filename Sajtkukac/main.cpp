@@ -23,6 +23,7 @@
 #include "Easing.h"
 
 #pragma comment (lib, "Version.lib")
+#pragma comment (lib, "Rstrtmgr.lib")
 #pragma comment (linker, "\"/manifestdependency:type='win32' \
 name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
 processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
@@ -39,8 +40,8 @@ WCHAR szWindowClass[MAX_LOADSTRING];   // the main window class name
 UINT uPercentage;                      // position of the icons
 UINT uRefreshRate;                     // refresh rate in milliseconds
 UINT uEasingIdx;                       // index of the easing function
-WORKER_DETAILS *wdDetails = nullptr;   // struct to communicate with worker
-UINT uMajor = 0, uMinor = 4;           // current version
+PWORKER_DETAILS wdDetails = nullptr;   // struct to communicate with worker
+UINT uMajor = 0, uMinor = 5;           // current version
 
 // TODO: fall back to system icons until someone makes one :)
 #ifndef IDI_SAJTKUKAC
@@ -56,8 +57,8 @@ BOOL             InitInstance(HINSTANCE, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK Settings(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
+DWORD            RestartExplorer(VOID);
 VOID             ShowContextMenu(HWND);
-VOID             RestartExplorer(VOID);
 VOID             StartProc(LPCWSTR, UINT);
 VOID             TerminateApplication(HWND, BOOL);
 BOOL             InitWorker(VOID);
@@ -74,7 +75,7 @@ int APIENTRY wWinMain(
 
 	// Detect already running instance
 	HANDLE hMutex = ::CreateMutex(0, TRUE, L"Sajtkukac");
-	if (GetLastError() == ERROR_ALREADY_EXISTS) return 1;
+	if (::GetLastError() == ERROR_ALREADY_EXISTS) return 1;
 	SCOPE_EXIT{ ::CloseHandle(hMutex); };
 
 	// Initialize globals
@@ -173,8 +174,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 BOOL InitWorker(VOID)
 {
-	return ::Init(nidApp.hWnd, &uPercentage, &uRefreshRate,
-		&uEasingIdx, &wdDetails);
+	return ::Init(nidApp.hWnd, uPercentage, uRefreshRate,
+		uEasingIdx, wdDetails);
 }
 
 #define LOADSTRING(name, id) \
@@ -218,32 +219,99 @@ VOID StartProc(LPCWSTR program, UINT args)
 	PROCESS_INFORMATION pi;
 	::ZeroMemory(&pi, sizeof(pi));
 	LOADSTRING(command, args);
-	::CreateProcess(program, command, nullptr, nullptr,
-		FALSE, 0, nullptr, nullptr, &si, &pi);
+	if (::CreateProcess(program, command, nullptr, nullptr,
+		FALSE, 0, nullptr, nullptr, &si, &pi))
+	{
+		::CloseHandle(pi.hProcess);
+		::CloseHandle(pi.hThread);
+	}
 }
 
-VOID RestartExplorer(VOID)
-{
+static const auto isExplorerRunning = [] {
 	PROCESSENTRY32 entry;
 	entry.dwSize = sizeof(PROCESSENTRY32);
 
 	HANDLE snapshot = ::CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
+	SCOPE_EXIT{
+		::CloseHandle(snapshot);
+	};
 
-	if (::Process32First(snapshot, &entry) == TRUE)
-	{
-		while (::Process32Next(snapshot, &entry) == TRUE)
-		{
-			if (::wcscmp(L"explorer.exe", entry.szExeFile) != 0) continue;
-			HANDLE hProcess = ::OpenProcess(
-				PROCESS_TERMINATE, FALSE, entry.th32ProcessID);
-			::TerminateProcess(hProcess, 1);
-			::CloseHandle(hProcess);
+	if (::Process32First(snapshot, &entry)) {
+		while (::Process32Next(snapshot, &entry)) {
+			if (!::_wcsicmp(entry.szExeFile, L"explorer.exe")) {
+				return true;
+			}
 		}
 	}
 
-	::CloseHandle(snapshot);
+	return false;
+};
 
-	::StartProc(nullptr, IDS_EXPLORER_COMMAND);
+DWORD RestartExplorer(VOID)
+{
+	DWORD errorCode = ERROR_SUCCESS;
+	DWORD sessionHandle = -1;
+
+	WCHAR sessionKey[CCH_RM_SESSION_KEY + 1];
+
+	LPCWSTR explorer[]{
+		L"C:\\Windows\\explorer.exe"
+	};
+
+	UINT retry = 0;
+	UINT affectedApplications = 0;
+	UINT processInformationNeeded = 0;
+	auto rebootReason = RmRebootReasonNone;
+	RM_PROCESS_INFO* affectedApplicationsPtr = nullptr;
+
+	SCOPE_EXIT{
+		if (affectedApplicationsPtr != nullptr) {
+			delete[] affectedApplicationsPtr;
+		}
+		if (sessionHandle != -1) {
+			::RmEndSession(sessionHandle);
+		}
+	};
+
+	CHK_HR(::RmStartSession(&sessionHandle, 0, sessionKey));
+	CHK_HR(::RmRegisterResources(sessionHandle, 1, explorer, 0, 0, 0, 0));
+
+	const auto result = [&] {
+		do {
+			errorCode = ::RmGetList(sessionHandle, &processInformationNeeded,
+				&affectedApplications, affectedApplicationsPtr, (LPDWORD)&rebootReason);
+			switch (errorCode) {
+			case ERROR_SUCCESS:
+				return 0;
+			case ERROR_MORE_DATA:
+				break;
+			default:
+				return 1;
+			}
+			affectedApplications = processInformationNeeded;
+
+			if (affectedApplicationsPtr != nullptr) {
+				delete[] affectedApplicationsPtr;
+			}
+
+			affectedApplicationsPtr = new RM_PROCESS_INFO[affectedApplications];
+		} while ((ERROR_MORE_DATA == errorCode) && (retry++ < 3));
+
+		return 0;
+	}();
+
+	if (result) {
+		return 0;
+	}
+
+	if (RmRebootReasonNone != rebootReason) {
+		return 0;
+	}
+
+	CHK_HR(::RmShutdown(sessionHandle, 0, 0));
+	CHK_HR(::RmRestart(sessionHandle, 0, 0));
+
+	return 0;
 }
 
 VOID TerminateApplication(HWND hWnd, BOOL startUpdater)
@@ -271,8 +339,8 @@ VOID ShowSuccessBalloon(VOID)
 	data.dwInfoFlags = NIIF_INFO;
 	data.uTimeout = 10000;
 
-	::LoadString(hInst, IDS_APP_TITLE, data.szInfoTitle, MAX_LOADSTRING);
-	::LoadString(hInst, IDS_WORKER_RELOADED, data.szInfo, MAX_LOADSTRING);
+	::LoadString(hInst, IDS_APP_TITLE, data.szInfoTitle, ::std::size(data.szInfoTitle));
+	::LoadString(hInst, IDS_WORKER_RELOADED, data.szInfo, ::std::size(data.szInfo));
 
 	::Shell_NotifyIcon(NIM_MODIFY, &data);
 }

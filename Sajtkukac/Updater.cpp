@@ -40,7 +40,7 @@ struct UPDATER_DETAILS
 DWORD WINAPI CheckUpdate(LPVOID pParam)
 {
 #define RET(val) return returnValue = val
-	enum updateStates
+	enum
 	{
 		UPDATE_INET_ERROR,
 		UPDATE_NOT_FOUND,
@@ -110,7 +110,7 @@ DWORD WINAPI CheckUpdate(LPVOID pParam)
 		RET(UPDATE_INET_ERROR);
 
 	CHAR buffer[INTERNET_MAX_URL_LENGTH];
-	DWORD bufferSize;
+	DWORD bufferSize = 0;
 	if (!::HttpQueryInfoA(hReq, HTTP_QUERY_LOCATION,
 		buffer, &bufferSize, nullptr))
 	{
@@ -136,7 +136,7 @@ DWORD WINAPI CheckUpdate(LPVOID pParam)
 
 DWORD WINAPI UpdateApplication(LPVOID pParam)
 {
-	enum updateStates
+	enum
 	{
 		UPDATE_INET_ERROR,
 		UPDATE_DONE

@@ -23,11 +23,13 @@
 
 struct WORKER_DETAILS
 {
-	PUINT percentage = nullptr;
-	PUINT refreshRate = nullptr;
-	PUINT easingIdx = nullptr;
+	PUINT percentage;
+	PUINT refreshRate;
+	PUINT easingIdx;
 	HWND hWnd = nullptr;
 	BOOL reload = FALSE;
 };
 
-BOOL Init(HWND, PUINT, PUINT, PUINT, WORKER_DETAILS**);
+using PWORKER_DETAILS = WORKER_DETAILS *;
+
+BOOL Init(HWND, UINT&, UINT&, UINT&, PWORKER_DETAILS&);

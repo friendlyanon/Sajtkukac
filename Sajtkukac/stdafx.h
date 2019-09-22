@@ -41,6 +41,7 @@
 #include <wininet.h>
 #include <urlmon.h>
 #include <atlbase.h>
+#include <restartmanager.h>
 
 // C RunTime Header Files
 #include <malloc.h>
@@ -48,12 +49,15 @@
 #include <wchar.h>
 
 // C++ Runtime Header Files
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdlib>
 #include <functional>
+#include <numeric>
 #include <unordered_map>
 #include <utility>
+#include <sstream>
 #include <vector>
 #include <experimental/filesystem>
 

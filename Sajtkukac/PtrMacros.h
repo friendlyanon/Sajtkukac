@@ -19,7 +19,7 @@
 #pragma once
 
 // return if result is not null
-#define CHK_HR(x) if (auto r = x; r) return r
+#define CHK_HR(x) if (auto r = x; r != 0) return r
 // release if x is not nullptr
 #define RELEASE(x) if (auto r = x; r != nullptr) r->Release()
 // declare pointer and init with nullptr
