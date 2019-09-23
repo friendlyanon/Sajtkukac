@@ -41,7 +41,7 @@ UINT uPercentage;                      // position of the icons
 UINT uRefreshRate;                     // refresh rate in milliseconds
 UINT uEasingIdx;                       // index of the easing function
 PWORKER_DETAILS wdDetails = nullptr;   // struct to communicate with worker
-UINT uMajor = 0, uMinor = 5;           // current version
+UINT uMajor = 0, uMinor = 6;           // current version
 
 // TODO: fall back to system icons until someone makes one :)
 #ifndef IDI_SAJTKUKAC

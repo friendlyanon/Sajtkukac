@@ -49,13 +49,29 @@ static BSTR g_bstrs[3] = {
 
 HRESULT GetWidthOfChildren(BOOL vertical, IUIAutomationElement *taskList, UINT &result)
 {
-	CComPtr<IUIAutomationCondition> buttonCond;
-	CHK_HR(g_pUI->CreatePropertyCondition(UIA_ControlTypePropertyId,
-		CComVariant{ UIA_ButtonControlTypeId }, &buttonCond));
+	static const long buttonVariants[] = {
+		UIA_ButtonControlTypeId,
+		UIA_MenuItemControlTypeId
+	};
+
+	IUIAutomationCondition* conditions[2]{ nullptr, nullptr };
+	SCOPE_EXIT{ for (int i = 0; i < 2; ++i) RELEASE(conditions[i]); };
+	for (int i = 0; i < 2; ++i)
+	{
+		Z_PTR(IUIAutomationCondition, prop);
+		CHK_HR(g_pUI->CreatePropertyCondition(
+			UIA_ControlTypePropertyId, CComVariant{ buttonVariants[i] },
+			&prop));
+		conditions[i] = prop;
+	}
+
+	CComPtr<IUIAutomationCondition> orCondition;
+	CHK_HR(g_pUI->CreateOrConditionFromNativeArray(
+		conditions, 2, &orCondition));
 
 	CComPtr<IUIAutomationElementArray> children;
 	CHK_HR(taskList->FindAll(TreeScope_Children,
-		buttonCond, &children));
+		orCondition, &children));
 
 	INT length;
 	CHK_HR(children->get_Length(&length));
