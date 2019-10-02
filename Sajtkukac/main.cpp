@@ -41,7 +41,7 @@ UINT uPercentage;                      // position of the icons
 UINT uRefreshRate;                     // refresh rate in milliseconds
 UINT uEasingIdx;                       // index of the easing function
 PWORKER_DETAILS wdDetails = nullptr;   // struct to communicate with worker
-UINT uMajor = 0, uMinor = 6;           // current version
+UINT uMajor = 0, uMinor = 7;           // current version
 
 // TODO: fall back to system icons until someone makes one :)
 #ifndef IDI_SAJTKUKAC
@@ -57,6 +57,7 @@ BOOL             InitInstance(HINSTANCE, int);
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK Settings(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK License(HWND, UINT, WPARAM, LPARAM);
 DWORD            RestartExplorer(VOID);
 VOID             ShowContextMenu(HWND);
 VOID             StartProc(LPCWSTR, UINT);
@@ -94,6 +95,8 @@ int APIENTRY wWinMain(
 	}
 
 	::WriteIni(uPercentage, uRefreshRate, uEasingIdx);
+
+	::LoadLibrary(L"riched20.dll");
 
 	HACCEL hAccelTable = ::LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SAJTKUKAC));
 	MSG msg;
@@ -199,6 +202,7 @@ VOID ShowContextMenu(HWND hWnd)
 	makeMenuItem(IDS_TRAY_SEPARATOR, MF_SEPARATOR,              IDM_SEP);
 	makeMenuItem(IDS_TRAY_UPDATE,    MF_BYPOSITION | MF_STRING, IDM_UPDATE);
 	makeMenuItem(IDS_TRAY_SEPARATOR, MF_SEPARATOR,              IDM_SEP);
+	makeMenuItem(IDS_TRAY_LICENSE,   MF_BYPOSITION | MF_STRING, IDM_LICENSE);
 	makeMenuItem(IDS_TRAY_ABOUT,     MF_BYPOSITION | MF_STRING, IDM_ABOUT);
 	makeMenuItem(IDS_TRAY_SEPARATOR, MF_SEPARATOR,              IDM_SEP);
 	makeMenuItem(IDS_TRAY_EXIT,      MF_BYPOSITION | MF_STRING, IDM_EXIT);
@@ -226,26 +230,6 @@ VOID StartProc(LPCWSTR program, UINT args)
 		::CloseHandle(pi.hThread);
 	}
 }
-
-static const auto isExplorerRunning = [] {
-	PROCESSENTRY32 entry;
-	entry.dwSize = sizeof(PROCESSENTRY32);
-
-	HANDLE snapshot = ::CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
-	SCOPE_EXIT{
-		::CloseHandle(snapshot);
-	};
-
-	if (::Process32First(snapshot, &entry)) {
-		while (::Process32Next(snapshot, &entry)) {
-			if (!::_wcsicmp(entry.szExeFile, L"explorer.exe")) {
-				return true;
-			}
-		}
-	}
-
-	return false;
-};
 
 DWORD RestartExplorer(VOID)
 {
@@ -456,6 +440,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case IDM_UPDATE:
 			::Updater(nidApp.hWnd, MAKELPARAM(uMajor, uMinor), TRUE);
 			break;
+		case IDM_LICENSE:
+			::DialogBox(hInst, MAKEINTRESOURCE(IDD_LICENSEBOX), hWnd, License);
+			break;
 		case IDM_ABOUT:
 			::DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
 			break;
@@ -509,14 +496,14 @@ INT_PTR CALLBACK Settings(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 		return (INT_PTR)TRUE;
 	case WM_NOTIFY:
 	{
-		LPNMHDR header = (LPNMHDR)lParam;
+		auto header = (LPNMHDR)lParam;
 		switch (header->code)
 		{
 		case NM_CLICK:
 		case NM_RETURN:
 		{
-			PNMLINK pNMLink = (PNMLINK)lParam;
-			LITEM item = pNMLink->item;
+			auto pNMLink = (PNMLINK)lParam;
+			auto item = pNMLink->item;
 			if (header->idFrom == IDC_SYSLINK1 && item.iLink == 0)
 			{
 				::ShellExecute(hDlg, nullptr, item.szUrl,
@@ -593,7 +580,6 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 	case WM_INITDIALOG:
 		return (INT_PTR)TRUE;
-
 	case WM_COMMAND:
 	{
 		WORD wNotifyCode = HIWORD(wParam);
@@ -611,6 +597,65 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 				L"https://github.com/friendlyanon/Sajtkukac",
 				nullptr, nullptr, SW_SHOW);
 			break;
+		case IDOK:
+		case IDCANCEL:
+			::EndDialog(hDlg, LOWORD(wParam));
+			return (INT_PTR)TRUE;
+		}
+	}
+	break;
+	}
+	return (INT_PTR)FALSE;
+}
+
+INT_PTR CALLBACK License(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	UNREFERENCED_PARAMETER(lParam);
+	switch (message)
+	{
+	case WM_INITDIALOG:
+	{
+		::SendDlgItemMessage(hDlg, IDC_GPL_NOTICE,
+			EM_SETEVENTMASK, 0, ENM_LINK);
+		::SendDlgItemMessage(hDlg, IDC_GPL_NOTICE,
+			EM_AUTOURLDETECT, AURL_ENABLEURL, 0);
+		WCHAR gplNotice[2048];
+		::LoadString(hInst, IDS_GPL_LICENSE_NOTICE,
+			gplNotice, sizeof(gplNotice));
+		::SendDlgItemMessage(hDlg, IDC_GPL_NOTICE,
+			WM_SETTEXT, 0, (LPARAM)gplNotice);
+		return (INT_PTR)TRUE;
+	}
+	case WM_NOTIFY:
+	{
+		auto header = (LPNMHDR)lParam;
+		switch (header->code)
+		{
+		case EN_LINK:
+		{
+			if (LOWORD(wParam) != IDC_GPL_NOTICE) break;
+			auto enLink = (ENLINK*)lParam;
+			switch (enLink->msg)
+			{
+			case WM_LBUTTONUP:
+			{
+				WCHAR url[512];
+				TEXTRANGE range{ enLink->chrg, url };
+				::SendDlgItemMessage(hDlg, IDC_GPL_NOTICE,
+					EM_GETTEXTRANGE, 0, (LPARAM)&range);
+				::ShellExecute(hDlg, nullptr, url,
+					nullptr, nullptr, SW_SHOW);
+				return (INT_PTR)TRUE;
+			}
+			}
+		}
+		}
+	}
+	break;
+	case WM_COMMAND:
+	{
+		switch (LOWORD(wParam))
+		{
 		case IDOK:
 		case IDCANCEL:
 			::EndDialog(hDlg, LOWORD(wParam));

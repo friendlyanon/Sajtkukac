@@ -20,6 +20,7 @@
 
 #include "resource.h"
 #include "Sajtkukac.h"
+#include <Richedit.h>
 
 #define WM_USER_WORKER (WM_USER + 2)
 #define WM_USER_WORKER_FAILURE (WM_USER + 3)
