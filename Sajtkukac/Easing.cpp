@@ -259,7 +259,7 @@ const auto easeInOutBounce = []
 
 const std::vector<std::pair<
 	LPCWSTR,
-	std::function<double(double, double, double, double)>
+	double (*)(double, double, double, double)
 	>> easingFunctions
 {
 	TO_PAIR(easeInQuad),

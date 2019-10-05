@@ -33,9 +33,9 @@ namespace simple_match::customization {
 	};
 }
 
-typedef std::unordered_map<
+using TRAYMAP = std::unordered_map<
 	IUIAutomationElement*,
-	IUIAutomationElement*> TRAYMAP;
+	IUIAutomationElement*>;
 
 static DWORD dwThreadID = 0;
 static HANDLE hThread = nullptr;
@@ -142,7 +142,8 @@ HRESULT MoveTaskList(BOOL vertical, UINT percentage, UINT easingIdx,
 
 	const DOUBLE tUnit = 1.0 / animationIterations * animationDuration;
 	DOUBLE currentTime = 0.0;
-	const auto& easeFn = easingFunctions[easingIdx].second;
+	const auto easeFn = easingFunctions[easingIdx].second;
+	
 	for (int i = 0; i < animationIterations; ++i, currentTime += tUnit)
 	{
 		const DOUBLE step = easeFn(
