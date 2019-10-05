@@ -17,6 +17,7 @@ Right clicking will bring up a menu with the following options:
  working.
  * `Check for updates`: allows the user to manually check for a new update and
  then apply it automatically.
+ * `License`: shows the license dialog containing the GPLv3 notice.
  * `About`: shows the about dialog.
  * `Exit`: reloads Explorer to reset the UI and terminatesthe software.
 
@@ -55,7 +56,7 @@ are more than welcome to buy me a drink. :)
 ## License
 [![GNU GPLv3 Image](https://www.gnu.org/graphics/gplv3-127x51.png)](http://www.gnu.org/licenses/gpl-3.0.en.html)  
 
-Sajtkukac is Free Software: You can use, study share and improve it at your
+Sajtkukac is Free Software: You can use, study, share and improve it at your
 will. Specifically you can redistribute and/or modify it under the terms of the
 [GNU General Public License](https://www.gnu.org/licenses/gpl.html) as
 published by the Free Software Foundation, either version 3 of the License, or
@@ -64,5 +65,5 @@ published by the Free Software Foundation, either version 3 of the License, or
 ### [simple_match](//github.com/jbandela/simple_match/)
 By John R. Bandela, licensed under Boost Software License - Version 1.0
 
-### Ease Out Back algorithm
+### Easing algorithms
 By Robert Penner, licensed under the BSD 2-clause license
