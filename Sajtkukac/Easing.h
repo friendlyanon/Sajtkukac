@@ -18,7 +18,9 @@
 
 #pragma once
 
-extern const std::vector<std::pair<
+using EasingFn = double (*)(double, double, double, double) noexcept;
+
+extern const std::array<std::pair<
 	LPCWSTR,
-	double (*)(double, double, double, double)
->> easingFunctions;
+	EasingFn
+>, 30> easingFunctions;

@@ -36,167 +36,121 @@
  // c - difference: targetValue - startValue
  // d - duration: the length of the animation
 
-namespace {
+#define EASING(name) static double name(double t, double b, double c, double d) noexcept
 
-const auto easeInQuad = []
-(double t, double b, double c, double d) -> double
-{
+using ::std::abs, ::std::asin, ::std::cos, ::std::pow, ::std::sin, ::std::sqrt;
+
+EASING(easeInQuad) {
 	return c * (t /= d) * t + b;
-};
+}
 
-const auto easeOutQuad = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeOutQuad) {
 	return -c * (t /= d) * (t - 2) + b;
-};
+}
 
-const auto easeInOutQuad = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInOutQuad) {
 	if ((t /= d / 2) < 1) return c / 2 * t * t + b;
 	return -c / 2 * (--t * (t - 2) - 1) + b;
-};
+}
 
-const auto easeInCubic = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInCubic) {
 	return c * (t /= d) * t * t + b;
-};
+}
 
-const auto easeOutCubic = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeOutCubic) {
 	return c * ((t = t / d - 1) * t * t + 1) + b;
-};
+}
 
-const auto easeInOutCubic = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInOutCubic) {
 	if ((t /= d / 2) < 1) return c / 2 * t * t * t + b;
 	return c / 2 * ((t -= 2) * t * t + 2) + b;
-};
+}
 
-const auto easeInQuart = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInQuart) {
 	return c * (t /= d) * t * t * t + b;
-};
+}
 
-const auto easeOutQuart = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeOutQuart) {
 	return -c * ((t = t / d - 1) * t * t * t - 1) + b;
-};
+}
 
-const auto easeInOutQuart = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInOutQuart) {
 	if ((t /= d / 2) < 1) return c / 2 * t * t * t * t + b;
 	return -c / 2 * ((t -= 2) * t * t * t - 2) + b;
-};
+}
 
-const auto easeInQuint = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInQuint) {
 	return c * (t /= d) * t * t * t * t + b;
-};
+}
 
-const auto easeOutQuint = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeOutQuint) {
 	return c * ((t = t / d - 1) * t * t * t * t + 1) + b;
-};
+}
 
-const auto easeInOutQuint = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInOutQuint) {
 	if ((t /= d / 2) < 1) return c / 2 * t * t * t * t * t + b;
 	return c / 2 * ((t -= 2) * t * t * t * t + 2) + b;
-};
+}
 
-const auto easeInSine = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInSine) {
 	return -c * cos(t / d * (M_PI / 2)) + c + b;
-};
+}
 
-const auto easeOutSine = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeOutSine) {
 	return c * sin(t / d * (M_PI / 2)) + b;
-};
+}
 
-const auto easeInOutSine = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInOutSine) {
 	return -c / 2 * (cos(M_PI * t / d) - 1) + b;
-};
+}
 
-const auto easeInExpo = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInExpo) {
 	return t == 0 ? b : c * pow(2, 10 * (t / d - 1)) + b;
-};
+}
 
-const auto easeOutExpo = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeOutExpo) {
 	return t == d ? b + c : c * (-pow(2, -10 * t / d) + 1) + b;
-};
+}
 
-const auto easeInOutExpo = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInOutExpo) {
 	if (t == 0) return b;
 	if (t == d) return b + c;
 	if ((t /= d / 2) < 1) return c / 2 * pow(2, 10 * (t - 1)) + b;
 	return c / 2 * (-pow(2, -10 * --t) + 2) + b;
-};
+}
 
-const auto easeInCirc = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInCirc) {
 	return -c * (sqrt(1 - (t /= d) * t) - 1) + b;
-};
+}
 
-const auto easeOutCirc = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeOutCirc) {
 	return c * sqrt(1 - (t = t / d - 1) * t) + b;
-};
+}
 
-const auto easeInOutCirc = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInOutCirc) {
 	if ((t /= d / 2) < 1) return -c / 2 * (sqrt(1 - t * t) - 1) + b;
 	return c / 2 * (sqrt(1 - (t -= 2) * t) + 1) + b;
-};
+}
 
-const auto easeInElastic = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInElastic) {
 	if (t == 0) return b;
 	if ((t /= d) == 1) return b + c;
 	double s = 1.70158, p = d * .3, a = c;
 	if (a < abs(c)) a = c, s = p / 4;
 	else s = p / (2 * M_PI) * asin(c / a);
 	return -(a * pow(2, 10 * (t -= 1)) * sin((t * d - s) * (2 * M_PI) / p)) + b;
-};
+}
 
-const auto easeOutElastic = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeOutElastic) {
 	if (t == 0) return b;
 	if ((t /= d) == 1) return b + c;
 	double s = 1.70158, p = d * .3, a = c;
 	if (a < abs(c)) a = c, s = p / 4;
 	else s = p / (2 * M_PI) * asin(c / a);
 	return a * pow(2, -10 * t) * sin((t*d - s)*(2 * M_PI) / p) + c + b;
-};
+}
 
-const auto easeInOutElastic = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInOutElastic) {
 	if (t == 0) return b;
 	if ((t /= d / 2) == 2) return b + c;
 	double s = 1.70158, p = d * .3 * 1.5, a = c;
@@ -205,63 +159,49 @@ const auto easeInOutElastic = []
 	return t < 1
 		? -.5 * (a * pow(2, 10 * (t -= 1)) * sin((t * d - s) * (2 * M_PI) / p)) + b
 		: a * pow(2, -10 * (t -= 1)) * sin((t * d - s) * (2 * M_PI) / p) * .5 + c + b;
-};
+}
 
-const auto easeInBack = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInBack) {
 	const double s = 1.70158;
 	return c * (t /= d) * t * ((s + 1) * t - s) + b;
-};
+}
 
-const auto easeOutBack = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeOutBack) {
 	const double s = 1.70158;
 	return c * ((t = t / d - 1) * t * ((s + 1) * t + s) + 1) + b;
-};
+}
 
-const auto easeInOutBack = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInOutBack) {
 	double s = 1.70158;
 	return (t /= d / 2) < 1
 		? c / 2 * (t * t * (((s *= 1.525) + 1) * t - s)) + b
 		: c / 2 * ((t -= 2) * t * (((s *= 1.525) + 1) * t + s) + 2) + b;
-};
+}
 
-const auto easeOutBounce = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeOutBounce) {
 	if ((t /= d) < (1 / 2.75)) return c * (7.5625 * t * t) + b;
 	if (t < (2 / 2.75)) return c * (7.5625 * (t -= 1.5 / 2.75) * t + .75) + b;
 	if (t < (2.5 / 2.75)) return c * (7.5625 * (t -= 2.25 / 2.75) * t + .9375) + b;
 	return c * (7.5625 * (t -= 2.625 / 2.75) * t + .984375) + b;
-};
+}
 
-const auto easeInBounce = []
-(double t, double b, double c, double d) -> double
-{
-	return c - easeOutBounce(d - t, 0, c, d) + b;
-};
+EASING(easeInBounce) {
+	return c - ::easeOutBounce(d - t, 0, c, d) + b;
+}
 
-const auto easeInOutBounce = []
-(double t, double b, double c, double d) -> double
-{
+EASING(easeInOutBounce) {
 	return t < d / 2
-		? easeInBounce(t * 2, 0, c, d) * .5 + b
-		: easeOutBounce(t * 2 - d, 0, c, d) * .5 + c * .5 + b;
-};
-
-} // namespace
+		? ::easeInBounce(t * 2, 0, c, d) * .5 + b
+		: ::easeOutBounce(t * 2 - d, 0, c, d) * .5 + c * .5 + b;
+}
 
 #define TO_PAIR(fn) { L#fn, fn }
 
-const std::vector<std::pair<
+const std::array<std::pair<
 	LPCWSTR,
-	double (*)(double, double, double, double)
-	>> easingFunctions
-{
+	EasingFn
+	>, 30> easingFunctions
+{{
 	TO_PAIR(easeInQuad),
 	TO_PAIR(easeOutQuad),
 	TO_PAIR(easeInOutQuad),
@@ -292,4 +232,4 @@ const std::vector<std::pair<
 	TO_PAIR(easeInBounce),
 	TO_PAIR(easeOutBounce),
 	TO_PAIR(easeInOutBounce)
-};
+}};

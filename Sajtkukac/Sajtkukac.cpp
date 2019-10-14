@@ -275,13 +275,15 @@ HRESULT SajtkukacInit(VOID)
 	return S_OK;
 }
 
-DWORD WINAPI Sajtkukac(PVOID pParam)
+DWORD WINAPI Sajtkukac(LPVOID pParam)
 {
-	auto details = (WORKER_DETAILS **)pParam;
-	HWND hWnd = (*details)->hWnd;
+	auto root = (WORKER_DETAILS **)pParam;
+	auto details = *root;
+
+	HWND hWnd = details->hWnd;
 	SCOPE_EXIT{
-		delete *details;
-		*details = nullptr;
+		delete details;
+		*root = nullptr;
 		::PostMessage(hWnd, WM_USER_WORKER,
 			WM_USER_WORKER_RELOAD, 0);
 	};
@@ -302,10 +304,10 @@ DWORD WINAPI Sajtkukac(PVOID pParam)
 		::CoUninitialize();
 	};
 
-	volatile auto reload = &(*details)->reload;
-	volatile auto refreshRate = (*details)->refreshRate;
-	volatile auto i = (*details)->easingIdx;
-	for (volatile auto p = (*details)->percentage;
+	volatile auto reload = &details->reload;
+	volatile auto refreshRate = details->refreshRate;
+	volatile auto i = details->easingIdx;
+	for (volatile auto p = details->percentage;
 		!*reload && SUCCEEDED(returnCode = ::SajtkukacImpl(*p, *i));
 		::Sleep(*refreshRate));
 
@@ -324,9 +326,10 @@ BOOL Init(HWND hWnd, UINT &pPercentage, UINT &pRefreshRate,
 		}
 	}
 	
-	auto ptr = new (::std::nothrow) WORKER_DETAILS{
-		&pPercentage, &pRefreshRate, &easingIdx, hWnd };
+	auto ptr = new WORKER_DETAILS{ &pPercentage,
+		&pRefreshRate, &easingIdx, hWnd };
 	if (ptr == nullptr) return FALSE;
+
 	wdDetails = ptr;
 	auto fn = (LPTHREAD_START_ROUTINE)::Sajtkukac;
 	hThread = ::CreateThread(0, 0, fn, &wdDetails, 0, &dwThreadID);
